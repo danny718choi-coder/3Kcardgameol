@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三國風雲 — 卡牌對戰 v3.2</title>
+<title>三國風雲 — 卡牌對戰 v3.3</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -163,8 +163,18 @@ h1,h2,h3{color:#ffd700}
 .hb-empty{font-size:11px;color:#555}
 .hand-bar.multi{flex-wrap:wrap;gap:6px;padding:6px 8px;}
 .hand-bar.multi .hb-side{flex:1 1 200px;padding:4px 8px;border-radius:6px;background:rgba(0,0,0,.15);}
-.hand-bar.multi .hb-side.hb-turn{background:rgba(255,215,0,.10);box-shadow:0 0 8px rgba(255,215,0,.35);}
+.hand-bar.multi .hb-side{gap:8px;}
+.hand-bar.multi .hb-side.hb-turn{
+    background:rgba(255,215,0,.16);
+    box-shadow:0 0 12px rgba(255,215,0,.55), inset 0 0 8px rgba(255,215,0,.15);
+    animation:hbTurnPulse 1.6s ease-in-out infinite;
+}
+@keyframes hbTurnPulse{
+    0%,100%{box-shadow:0 0 8px rgba(255,215,0,.45), inset 0 0 6px rgba(255,215,0,.10);}
+    50%{box-shadow:0 0 22px rgba(255,215,0,.85), inset 0 0 14px rgba(255,215,0,.28);}
+}
 .hand-bar.multi .hb-side.hb-me{outline:1px dashed rgba(255,215,0,.55);}
+.hb-hand{font-size:14px;font-weight:bold;color:#d0c090;flex-shrink:0;display:inline-flex;align-items:center;gap:2px;}
 .hb-wins{font-size:12px;font-weight:bold;}
 .player-row{display:flex;gap:8px;padding:6px 10px;margin-bottom:8px;background:rgba(0,0,0,.28);border-radius:9px;border:1px solid rgba(200,160,64,.22);flex-wrap:wrap;}
 .pr-chip{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:16px;border:2px solid;background:rgba(0,0,0,.3);font-size:13px;font-weight:bold;flex:1 1 auto;justify-content:center;transition:.15s;position:relative;min-width:110px;}
@@ -176,9 +186,19 @@ h1,h2,h3{color:#ffd700}
 .bf-player-lbl{font-size:11px;font-weight:bold;letter-spacing:1px;writing-mode:vertical-rl;text-orientation:upright;padding:2px;opacity:.85;min-width:16px;text-align:center;}
 .bf-flex{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
 .bf-wrap{transition:flex .25s ease,opacity .25s;border-radius:9px;overflow:hidden}
-.bf-wrap.active{flex:4;box-shadow:0 0 18px rgba(255,215,0,.15)}
-.bf-wrap.inactive{flex:1;opacity:.82}
-.bf-wrap.future{flex:1;opacity:.45}
+.bf-wrap.active{flex:10 1 0;min-width:0;box-shadow:0 0 18px rgba(255,215,0,.15)}
+.bf-wrap.inactive{flex:1 1 0;min-width:0;opacity:.72}
+.bf-wrap.future{flex:1 1 0;min-width:0;opacity:.38}
+.bf-wrap.inactive .bfield,
+.bf-wrap.future .bfield{padding:3px}
+.bf-wrap.inactive .bf-row,
+.bf-wrap.future .bf-row{min-height:60px;padding:2px 1px;margin-bottom:2px}
+.bf-wrap.inactive .bf-head,
+.bf-wrap.future .bf-head{font-size:10px;margin-bottom:2px;letter-spacing:1px}
+.bf-wrap.inactive .bf-cards,
+.bf-wrap.future .bf-cards{gap:2px}
+.bf-wrap.inactive .bf-total,
+.bf-wrap.future .bf-total{font-size:12px;min-width:24px;padding:1px}
 .bfield{background:rgba(0,0,0,.35);border:1px solid rgba(200,160,64,.25);border-radius:9px;padding:6px;height:100%;display:flex;flex-direction:column}
 .bf-wrap.active .bfield{border-color:rgba(255,215,0,.55)}
 .bf-head{display:flex;justify-content:space-between;font-size:12px;color:#c8a040;letter-spacing:2px;margin-bottom:4px;padding:0 2px}
@@ -308,7 +328,8 @@ h1,h2,h3{color:#ffd700}
 .card.mini.xs .c-power { font-size: 11px; }
 
 /* ============ 快速聊天 ============ */
-.quick-chat{background:rgba(0,0,0,.3);border:1px solid rgba(200,160,64,.25);border-radius:9px;padding:8px 10px;margin:8px 0;}
+.quick-chat.collapsed{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;}
+.qc-toggle{padding:3px 10px !important;font-size:12px !important;}
 .qc-header{font-size:12px;color:#c8a040;letter-spacing:2px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
 .qc-cooldown{font-size:12px;color:#ff9c4a;font-weight:bold;}
 .qc-row{display:flex;gap:5px;flex-wrap:wrap;}
@@ -1770,7 +1791,8 @@ const CHAT_MSG = [
 ];
 const CHAT_EMOJI = [
     '😀', '😂', '😎', '🤔', '😱',        // 1-5
-    '👍', '👎', '😠', '🌹', '🥀'         // 6-10
+    '👍', '👎', '😠', '🌹', '🥀',        // 6-10
+    '😭', '😴', '🤡', '😅', '💀'         // 11-15（AI 不使用）
 ];
 
 const PLAYER_COLORS = [
@@ -3007,8 +3029,10 @@ constructor(cfg) {
     this.backBtnState = 'grey';   // 已廢棄，保留相容
     this.backBtnTimer = null;      // 已廢棄，保留相容
     this.expandedField = null;     // 玩家手動展開的戰場索引
-    this.aiSpeed = 1;              // AI vs AI 速度倍率
-    this.countdown = null;
+    this.aiSpeed = (() => {
+        const v = parseFloat(safeStore.get('sanguo_aiSpeed', '1'));
+        return (v && v > 0 && v <= 10) ? v : 1;
+    })();    this.countdown = null;
     this.countdownTimer = null;
     this.aiTimer = null;
     this.flipAutoTimer = null;
@@ -3018,7 +3042,10 @@ constructor(cfg) {
     this._simaYiLastChanceUsed = false;
     this._rematchVotes = [false, false];   // Phase 3: [host, guest]
     this.sendToBottom = !!(cfg.sendToBottom); // true = flip cards & redraw discards go to bottom of draw pile
-
+    this.aiTrashTalk  = cfg.aiTrashTalk  !== false;   // 預設開啟
+    this.chatEnabled  = cfg.chatEnabled  !== false;   // 預設開啟
+    this._chatExpanded = safeStore.get('sanguo_chatExpanded', '1') === '1';
+	
     /* ============ 網路對戰欄位 (Phase 1) ============ */
     this.netMode = !!(cfg.netMode);
     this.localPlayerIdx = cfg.localPlayerIdx ?? 0;
@@ -3451,6 +3478,7 @@ setUIScale(s) {
 }
 setAISpeed(s) {
     this.aiSpeed = s;
+    safeStore.set('sanguo_aiSpeed', String(s));
     this.closeGameMenu();
     this.render();
 }
@@ -3650,6 +3678,7 @@ mulliganConfirm() {
 }
 mulliganHandoff() {
     if (this.mulliganStage !== 'hidden') return;
+    if (this.state === 'battle') return;   // v3.4.1: already started
     this.cover = false;
     const other = this.opponentOf(this.mulliganPlayer);
     if (!this.players[other].mulliganDone) {
@@ -3676,6 +3705,7 @@ doMulliganAI() {
 }
 
 startBattle() {
+    if (this.state === 'battle') return;   // v3.4.1: guard against double-call
     this.state = 'battle'; this.phase = 'turn'; this.cover = false;
     // Net mode skips the countdown, so clear the "just drawn" glow now.
     for (let pi = 0; pi < this.numPlayers; pi++)
@@ -3702,6 +3732,7 @@ startBattle() {
     this.addLog('sys', `${this.players[this.current].name} 先行出牌`);
     this._triggerPreTurnFlip();
     this._logTurnStart();
+	this.maybeTriggerAIChats('round_start');
     for (let pi = 0; pi < this.numPlayers; pi++) this.logHand(pi, 'R'+this.round+' 開局');
     this.recordEvent('round_start', {
         battlefield: this.currentBfIndex, battlefieldName: BATTLEFIELDS[this.currentBfIndex],
@@ -4732,19 +4763,18 @@ doPreEndAI() {
     const myEff = myVisible + myFlipPotential;
     const oppEff = oppVisible + oppFlipPotential;
 
-    // 平手時先手方勝
+    // 平手時先手方勝 — 後手任何平手都算輸，因此 +1 修正
     const iAmFirst = (this.roundFirstPlayer === pi);
-    const margin = myEff - oppEff;
+    const rawMargin = myEff - oppEff;
+    const margin = iAmFirst ? rawMargin : rawMargin - 1;
 
     // 決定投入等級 0~5
     let invest = 0;
-    if (margin >= 8) invest = 0;                            // 穩贏大：省資源
-    else if (margin >= 4) invest = 1;                       // 穩贏中：只打 1 糧牌保險
-    else if (margin >= 1) invest = 2;                       // 小贏：適度加碼
-    else if (margin === 0 && iAmFirst) invest = 0;          // 平手先手：已算贏
-    else if (margin === 0 && !iAmFirst) invest = 4;         // 平手後手：必須加碼
-    else if (margin >= -3) invest = 4;                      // 小落後：全力追
-    else invest = 5;                                        // 大落後：梭哈
+    if (margin >= 8) invest = 0;                            // 穩贏大
+    else if (margin >= 4) invest = 1;                       // 穩贏中
+    else if (margin >= 1) invest = 2;                       // 小贏
+    else if (margin >= -3) invest = 4;                      // 平手/小落後 → 全力追
+    else invest = 5;                                        // 大落後 → 梭哈
 
     if (invest === 0) { this.preEndAct(); return; }
 
@@ -4805,6 +4835,11 @@ doPreEndPlay(inst, asAmbush, bi) {
     if (!asAmbush) this.players[pi].lastFaceUpEnemy[bi] = inst;
 
     this.addLog(pi, `[R${this.round}·結算前] ${p.name} ${asAmbush ? '埋伏' : '加碼'} ${inst.data.name}（-${asAmbush ? 0 : inst.data.cost}糧｜餘${p.food}）`);
+    this.recordEvent('play', {
+        player: pi, cardId: inst.data.id, cardUid: inst.uid, field: bi, faceDown: !!asAmbush,
+        foodCost: asAmbush ? 0 : inst.data.cost, foodAfter: p.food, handAfter: p.hand.length,
+        phase: 'preend'
+    });
 
     if (!asAmbush) this.runEntryTriggers(pi, inst, bi);
     this.applyBurn(pi);
@@ -4854,7 +4889,7 @@ decidePlayAI(pi) {
     const oppFoodPotential = Math.min(opp.food, 8) * 1.5;
     const oppHandPotential = Math.min(opp.hand.length, 5) * 3;
     const oppFaceDownCount = oppField.filter(c => c.faceDown).length;
-    const oppFlipPotential = oppFaceDownCount * 1.5;
+    const oppFlipPotential = oppFaceDownCount * 2.5;   // v3.4：伏兵平均更強
     const myFlipPotential = myField.filter(c => c.faceDown).reduce((s, c) => s + (c.data.power || 0), 0);
     const oppMaxPotential = Math.min(oppFoodPotential, oppHandPotential) + oppFlipPotential;
     const myEffectivePow = myPow + myFlipPotential;
@@ -4864,6 +4899,9 @@ decidePlayAI(pi) {
     const alreadyWinningBig = myLead > 8;
     const iAmSecondPlayer = (this.current !== this.roundFirstPlayer);
     const mustWinThisRound = oppAtMatchPoint;
+    // v3.4.1: Earlier rounds are less urgent. Save big plays.
+    const isLastRound = this.round >= this.fieldCount;
+    const iAmSafeInMatch = myWins >= 1 && !isLastRound;  // 1 more win is enough
 
     const playable = p.hand.filter(c => this.canPlayNormally(c, pi) || this.canPlayAmbush(c, pi));
     if (playable.length === 0) return { play: false, reason: 'no_playable' };
@@ -4890,18 +4928,24 @@ decidePlayAI(pi) {
     else if (oppPassed && myFieldEmpty) { shouldPlay = true; reason = 'empty_field'; }
     else if (oppPassed && myPow < oppPow) { shouldPlay = true; reason = 'behind_opp'; }
     else if (oppPassed) {
-    // v3.1：對手已放棄，根據目前差距決定是否繼續加碼
-    // 注意：對手還有埋伏牌，估算風險
-    const oppFlipRisk = oppField.filter(c => c.faceDown).length * 3;
+    // v3.4：對手已放棄。後手平手視為輸 → -1 修正
+    const oppFlipRisk = oppField.filter(c => c.faceDown).length * 4;   // 提高風險估算
     const projectedOpp = oppPow + oppFlipRisk;
-    const marginNow = myEffectivePow - projectedOpp;
+    let marginNow = myEffectivePow - projectedOpp;
+    const iAmFirst = (this.roundFirstPlayer === pi);
+    if (!iAmFirst) marginNow -= 1;
 
-    if (marginNow >= 10) shouldPlay = this.rng() < 0.15;          // 大優：省資源
-    else if (marginNow >= 6) shouldPlay = this.rng() < 0.45;
-    else if (marginNow >= 3) shouldPlay = this.rng() < 0.85;
+    if (marginNow >= 10) shouldPlay = this.rng() < 0.20;
+    else if (marginNow >= 6) shouldPlay = this.rng() < 0.55;
+    else if (marginNow >= 3) shouldPlay = this.rng() < 0.90;
     else shouldPlay = true;                                        // 小優/平/劣：必出
     reason = 'opp_pass_margin_' + Math.round(marginNow);
 }
+    else if ((opp.food === 0 || (opp.food === 1 && opp.hand.every(c => c.data.cost > 1)))
+             && myEffectivePow > oppEffectivePow + 8) {
+        // v3.4.2: 對手真的沒牌可打 → 領先 8+ 就不用再消耗
+        return { play: false, reason: 'opp_broke_ahead' };
+    }
     else {
         const spareResources = p.hand.length >= 3 && p.food >= 3;
         if (spareResources && myLead > -8) { shouldPlay = true; reason = 'spare'; }
@@ -5210,15 +5254,20 @@ scoreCardAI(c, pi, diff, ctx) {
         if (hasBuqu) score -= 20;
     }
     if (d.id === 'yibing' && ctx.myPendingFlipCost > 0 && p.food < ctx.myPendingFlipCost) score -= 15;
-    if ((d.skills || []).includes('反骨')) {
-        const oppBoardAfter = this.totalPower(this.opponentOf(pi), false);
-        let oppCeiling;
-        if (d.isGeneral) oppCeiling = oppBoardAfter + Math.min(opp.hand.length, 3) * 6;
-        else oppCeiling = oppBoardAfter + Math.min(opp.hand.length, 4) * 2 + opp.fields[bi].filter(c => c.faceDown).length * 3;
-        const myTotalAfter = this.totalPower(pi, false) + (d.power || 0);
-        if (myTotalAfter <= oppCeiling) score -= 60;
-        else if (myTotalAfter - oppCeiling < 6) score -= 25;
-    }
+if ((d.skills || []).includes('反骨')) {
+    const oppBoardAfter = this.totalPower(this.opponentOf(pi), false);
+    let oppCeiling;
+    if (d.isGeneral) oppCeiling = oppBoardAfter + Math.min(opp.hand.length, 3) * 6;
+    else oppCeiling = oppBoardAfter + Math.min(opp.hand.length, 4) * 2 + opp.fields[bi].filter(c => c.faceDown).length * 3;
+    const myTotalAfter = this.totalPower(pi, false) + (d.power || 0);
+    // v3.4.2: 若對手無糧可反擊，反骨實際不會觸發（對手加入後無法再出牌）
+    const oppCannotRespond = opp.food === 0;
+    if (oppCannotRespond) {
+        // 對手已無資源，反骨無害
+        // 不加分，也不扣分
+    } else if (myTotalAfter <= oppCeiling) score -= 60;
+    else if (myTotalAfter - oppCeiling < 6) score -= 25;
+}
     if (myFieldNow.length <= 2) {
         const sk = d.skills || [];
         if (sk.includes('觀星')) score += 9;
@@ -5616,26 +5665,41 @@ scoreCardAI(c, pi, diff, ctx) {
     if (diff === 'hard') {
 		// v3.1：下輪資源評估——避免把糧草用完導致下一輪斷炊
 const foodAfterPlay = p.food - (d.cost || 0);
-const refillTo = Math.min(this.cfg.maxFood, foodAfterPlay + this.cfg.baseRefill);
 const foodWasted = Math.max(0, foodAfterPlay + this.cfg.baseRefill - this.cfg.maxFood);
-if (foodAfterPlay <= 1 && p.hand.length >= 3) {
-    // 打完這張後糧草見底，且手上還有牌 → 稍微扣分
-    score -= 3;
+// v3.4.1: dying with cards in hand is the #1 loss pattern
+if (foodAfterPlay === 0 && p.hand.length >= 3) {
+    score -= (p.hand.length >= 5) ? 14 : (p.hand.length >= 4 ? 10 : 7);
+} else if (foodAfterPlay === 1 && p.hand.length >= 3) {
+    score -= 5;
+}
+// If opponent will have ≥3 food advantage after this play, they outlast us
+if (opp.food - foodAfterPlay >= 3) {
+    score -= 5;
 }
 if (foodWasted > 2) {
-    // 糧草溢出上限，浪費了補給
     score -= 2;
 }
 
-// v3.1：平手先手勝的規則——後手方不能接受平手
+// v3.4：平手先手勝。後手方任何平手都等於輸，必須積極拉開
 const iAmFirst = (this.roundFirstPlayer === pi);
-if (!iAmFirst && Math.abs(myPow - oppPow) <= 2 && !opp.passed) {
-    // 我是後手，差距在 ±2 內 → 必須設法拉開
-    if (d.power >= 3) score += 3;
-}
-if (iAmFirst && Math.abs(myPow - oppPow) <= 1 && !opp.passed) {
-    // 我是先手，稍微領先/平手都算贏 → 不需過度投入
-    score -= 1;
+if (!opp.passed) {
+    const margin = myPow - oppPow;
+    if (!iAmFirst) {
+        // 後手：任何平手都會輸
+        if (margin <= 0) {
+            // 落後或平手 → 必須加碼
+            score += 5;
+            if (d.power >= 3) score += 3;
+            if (d.power >= 5) score += 2;
+        } else if (margin <= 2) {
+            // 小領先尚未安全 → 繼續施壓
+            score += 2;
+            if (d.power >= 3) score += 2;
+        }
+    } else {
+        // 先手：小幅領先即為勝 → 避免無謂消耗
+        if (margin >= 1 && margin <= 2 && d.power <= 3) score -= 2;
+    }
 }
         const projected = myPow + (d.power || 0);
         const wouldWin = projected > oppPow;
@@ -5651,6 +5715,28 @@ if (iAmFirst && Math.abs(myPow - oppPow) <= 1 && !opp.passed) {
         const hasLoseSkill = myFieldNow.some(x => !x.faceDown && (x.data.skills || []).some(s => LOSE_TRIGGER_SKILLS.includes(s)));
         if (hasWinSkill && wouldWin && !(myPow>oppPow)) score += 3;
         if (hasLoseSkill && !wouldWin && p.wins === 0 && opp.wins === 0) score += 1;
+
+        // v3.4.1: Cross-round patience. If I already have 1 win and this
+        // isn't the final round, don't dump expensive cards — keep them
+        // for round 3 where they'll matter more.
+        const isLastRound = this.round >= this.fieldCount;
+        const iAlreadyWon = p.wins >= 1;
+        if (!isLastRound && iAlreadyWon) {
+            if (d.cost >= 3 && p.food <= 5) score -= 4;
+            if (d.cost >= 5) score -= 3;
+        }
+        // Conversely: if I'm 0-1 (must win 2 in a row), spend MORE in R2
+        if (!isLastRound && p.wins === 0 && opp.wins === 1 && this.round === 2) {
+            score += 2;  // R2 is a must-win for me
+        }
+
+        // v3.4.2: 「這張是唯一能翻盤的牌」加成
+        // 若我落後、這張牌的戰力足以讓局面變成領先、且我還有食物，
+        // 大幅加分——避免像 0ETAQZW 那樣放著呂布不用就輸了
+        const deficit = oppPow - myPow;
+        if (deficit > 0 && d.power >= deficit + 2 && d.cost <= p.food && !d.isAmbush) {
+            score += 8 + Math.min(6, deficit);   // 落後越多，越想打
+        }
     }
     return score + this.rng() * 3;
 }
@@ -5799,6 +5885,7 @@ _chatBubble(pi, text, delay = 0) {
 /* ============ AI 聊天觸發器（個性化） ============ */
 aiChatTrigger(pi, event, opts = {}) {
     if (this.netMode) return;
+    if (!this.aiTrashTalk) return;
     if (!this.isAI(pi)) return;
     const p = this.players[pi];
     const pers = p.personality || 'malignant';
@@ -5894,6 +5981,7 @@ aiSayEmoji(pi, delay = 500) { this.aiChatTrigger(pi, 'win_round'); }
 /* 玩家嗆 AI → 依個性回應 */
 maybeAIChatResponse(humanPi, text) {
     if (this.netMode) return;
+    if (!this.aiTrashTalk) return;
     const ais = [];
     for (let i = 0; i < this.numPlayers; i++) if (this.isAI(i)) ais.push(i);
     if (ais.length === 0) return;
@@ -5907,6 +5995,7 @@ maybeAIChatResponse(humanPi, text) {
 /* 開局 / 換輪時統一觸發招呼 */
 maybeTriggerAIChats(stage) {
     if (this.netMode) return;
+    if (!this.aiTrashTalk) return;
     for (let pi = 0; pi < this.numPlayers; pi++) {
         if (!this.isAI(pi)) continue;
         if (stage === 'round_start') {
@@ -6389,7 +6478,7 @@ renderMulligan() {
                 <button class="btn btn-red" ${(stage !== 'choose' || !canAct) ? 'disabled' : ''} onclick="game.mulliganSkip()">放棄重抽</button>
                 <button class="btn btn-green" ${(stage !== 'confirm' || !canAct) ? 'disabled' : ''} onclick="game.mulliganConfirm()">確認</button>            </div>
         </div>`;
-    if ((stage === 'hidden' || this.cover) && !this.netMode) {
+    if ((stage === 'hidden' || this.cover) && !this.netMode && !isAIP) {
         const other = this.opponentOf(pi);
         const otherIsHuman = !this.isAI(other);
         if (otherIsHuman) {
@@ -6522,11 +6611,10 @@ renderBattle() {
     h += this.renderHeader();
     h += `<div class="battle-layout"><div class="battle-main">
         ${this.renderHandBar()}
-        ${this.renderPlayerRow()}
         ${this.renderBattlefields()}
         ${this.renderControls()}
-        ${this.renderQuickChat()}
         ${this.renderHands()}
+        ${this.renderQuickChat()}
     </div><div class="battle-side">
         ${this.renderHistory()}
         ${this.renderArchive()}
@@ -6555,19 +6643,20 @@ renderHeader() {
 }
 renderHandBar() {
     const cap = this.cfg.maxFood;
-    const miniRow = n => n === 0 ? '<span class="hb-empty">無手牌</span>' : '<div class="mini-back"></div>'.repeat(n);
     const me = this.netMode ? this.localPlayerIdx : this.current;
     return `<div class="hand-bar multi">
         ${this.players.map((p, i) => {
             const col = PLAYER_COLORS[i % PLAYER_COLORS.length];
-            const isTurn = (this.phase === 'turn' && i === this.current);
+            const isTurn = (this.phase === 'turn' && i === this.current) ||
+                           (this.phase === 'preend' && this.preEndOrder && this.preEndOrder[this.preEndIdx] === i);
             const isMe = (i === me);
             return `<div class="hb-side ${isTurn ? 'hb-turn' : ''} ${isMe ? 'hb-me' : ''}" style="border-left:3px solid ${col.border};">
                 <span class="hb-lbl" style="color:${col.text};">${p.name}${this.aiIcon(i)}</span>
-                <div class="hb-cards">${miniRow(p.hand.length)}</div>
+                <span class="hb-hand">🎴 ${p.hand.length}</span>
                 <span class="hb-food">🌾 ${p.food}/${cap}</span>
-                <span class="hb-spent">（耗${p.roundSpent}）</span>
+                <span class="hb-spent">-${p.roundSpent||0}</span>
                 <span class="hb-wins" style="color:${col.text};">🏆${p.wins}</span>
+                ${p.passed ? `<span class="pr-pass">放棄</span>` : ''}
             </div>`;
         }).join('')}
     </div>`;
@@ -6600,16 +6689,14 @@ renderBattlefields() {
         const isExpanded = (this.expandedField === bi);
         // 大小判定：手動展開優先，否則當前戰場為大
         const showLarge = isExpanded || (isActive && this.expandedField === null);
-		let wrapCls;
-		if (isExpanded) {
-			wrapCls = 'active manually-expanded expandable';
-		} else if (isActive) {
-			wrapCls = 'active expandable';
-		} else if (isPast) {
-			wrapCls = 'inactive expandable';
-		} else {
-			wrapCls = 'future expandable';
-		}
+        let wrapCls;
+        if (showLarge) {
+            wrapCls = 'active' + (isExpanded ? ' manually-expanded' : '') + ' expandable';
+        } else if (isPast) {
+            wrapCls = 'inactive expandable';
+        } else {
+            wrapCls = 'future expandable';
+        }
 
         // 戰場標題
         let headRes = '';
@@ -6630,7 +6717,7 @@ renderBattlefields() {
             : '';
 
         // 卡牌大小
-        const cardSize = showLarge ? undefined : (isPast ? 'xs' : 'sm');
+        const cardSize = showLarge ? undefined : 'xs';
         const cardExtra = isPast ? 'grey clickable' : (isFuture ? (isExpanded ? 'clickable' : 'grey') : 'clickable');
         // 可被檢視的條件：非未來、或已被展開
         const canInspect = !isFuture || isExpanded || this.expandedField === bi;
@@ -6784,25 +6871,44 @@ renderControls() {
         </div>${fieldPicker}${skillBox}</div>`;
 }
 renderQuickChat() {
+    if (!this.chatEnabled) return '';
     if (this.state === 'gameover') return '';
     const me = this.netMode ? this.localPlayerIdx : this.current;
     const isAIP = this.isAI(me);
     const allBots = this.players.every(p => p.botType);
     const canAct = !allBots && !isAIP && !this.cover && this.countdown === null;
+    const expanded = this._chatExpanded !== false;
+    const toggleBtn = `<button class="qc-btn qc-toggle" onclick="game.toggleChatExpand()" title="${expanded ? '收合聊天' : '展開聊天'}">${expanded ? '▼' : '▲'} 💬</button>`;
+
+    if (!expanded) {
+        return `<div class="quick-chat collapsed">
+            <span style="font-size:12px;color:#a89070;">💬 聊天已收合</span>
+            ${toggleBtn}
+        </div>`;
+    }
+
     const presetBtns = CHAT_MSG.map((t, i) => {
         const displayText = t.replace(/\n/g, ' ');
-        return `<button class="qc-btn" data-qc ${canAct?'':'disabled'} onclick="sendChat(CHAT_MSG[${i}])">${displayText}</button>`;
+        return `<button class="qc-btn" data-qc ${canAct ? '' : 'disabled'} onclick="sendChat(CHAT_MSG[${i}])">${displayText}</button>`;
     }).join('');
     const emojiBtns = CHAT_EMOJI.map((e, i) =>
-        `<button class="qc-btn qc-emoji" data-qc ${canAct?'':'disabled'} onclick="sendChat(CHAT_EMOJI[${i}])">${e}</button>`
+        `<button class="qc-btn qc-emoji" data-qc ${canAct ? '' : 'disabled'} onclick="sendChat(CHAT_EMOJI[${i}])">${e}</button>`
     ).join('');
     const hint = allBots ? '<span style="font-size:11px;color:#888;">（AI 自動對話中）</span>'
                 : (isAIP ? '<span style="font-size:11px;color:#888;">（等待 AI 行動…）</span>' : '');
     return `<div class="quick-chat">
-        <div class="qc-header"><span>💬 快速聊天 ${hint}</span><span class="qc-cooldown" id="qc-cooldown"></span></div>
+        <div class="qc-header">
+            <span>💬 快速聊天 ${hint}</span>
+            <span style="display:flex;gap:8px;align-items:center;">${toggleBtn}<span class="qc-cooldown" id="qc-cooldown"></span></span>
+        </div>
         <div class="qc-row">${presetBtns}</div>
         <div class="qc-row">${emojiBtns}</div>
     </div>`;
+}
+toggleChatExpand() {
+    this._chatExpanded = !this._chatExpanded;
+    safeStore.set('sanguo_chatExpanded', this._chatExpanded ? '1' : '0');
+    this.render();
 }
 renderHands() {
     const pi = this.netMode ? this.localPlayerIdx : this.current;
@@ -7156,7 +7262,7 @@ function showSetup() {
     document.getElementById('app').innerHTML = `
     <div class="setup">
         <h1>三 國 風 雲</h1>
-        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.2</div>
+        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.3</div>
 
         <div class="sec"><h3>玩家名稱</h3>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -7196,12 +7302,14 @@ function showSetup() {
                         <button class="btn" style="padding:5px 10px;font-size:12px;" onclick="document.getElementById('cfg-seed').value=''">清空</button>
                         <button class="btn" style="padding:5px 10px;font-size:12px;" onclick="document.getElementById('cfg-seed').value=makeSeed()">🎲 隨機</button>
                     </div>
-                    <label class="num-item"><span>藍方 AI 難度</span>
-                        <select id="cfg-ai1Diff"><option value="general">一般</option><option value="hard" selected>困難</option></select>
-                    </label>
-                    <label class="num-item"><span>紅方 AI 難度</span>
-                        <select id="cfg-ai2Diff"><option value="general">一般</option><option value="hard" selected>困難</option></select>
-                    </label>
+                    <div class="num-item" style="grid-column:1/-1;">
+                        <span>💬 AI 對話（嗆聲 / 隨機聊天）</span>
+                        <input type="checkbox" id="cfg-aiTrashTalk" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
+                    </div>
+                    <div class="num-item" style="grid-column:1/-1;">
+                        <span>🗨 玩家快速聊天按鈕</span>
+                        <input type="checkbox" id="cfg-chatEnabled" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
+                    </div>
                     <label class="num-item"><span>初始糧草</span><input type="number" id="cfg-initialFood" value="7" min="0" max="30"></label>
                     <label class="num-item"><span>勝利額外糧草</span><input type="number" id="cfg-winBonus" value="1" min="0" max="20"></label>
                     <label class="num-item"><span>每輪基礎補給</span><input type="number" id="cfg-baseRefill" value="6" min="0" max="20"></label>
@@ -7730,6 +7838,8 @@ function startGame(mode) {
         baseRefill  : num('cfg-baseRefill', 6),
         initialCards: num('cfg-initialCards', 4),
         maxFood     : num('cfg-maxFood', 12),
+        aiTrashTalk : document.getElementById('cfg-aiTrashTalk').checked,
+        chatEnabled : document.getElementById('cfg-chatEnabled').checked,
         autoExport  : document.getElementById('cfg-autoExport').checked,
         autoRestart : document.getElementById('cfg-autoRestart').checked,
         autoRestartDelay: 2000
@@ -7860,7 +7970,8 @@ function readCfgFromSetup() {
         baseRefill  : num('cfg-baseRefill', 6),
         initialCards: num('cfg-initialCards', 4),
         maxFood     : num('cfg-maxFood', 12),
-        ai1Diff: 'hard', ai2Diff: 'hard',
+        aiTrashTalk : document.getElementById('cfg-aiTrashTalk') ? document.getElementById('cfg-aiTrashTalk').checked : true,
+        chatEnabled : document.getElementById('cfg-chatEnabled') ? document.getElementById('cfg-chatEnabled').checked : true,
         autoExport: false, autoRestart: false
     };
     if (!validateCardSets(cfg.cardSets)) return null;
