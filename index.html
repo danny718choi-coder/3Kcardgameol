@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三國風雲 — 卡牌對戰 v3.0</title>
+<title>三國風雲 — 卡牌對戰 v3.2</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -56,9 +56,23 @@ h1,h2,h3{color:#ffd700}
 .card.xs .c-tag{display:none}
 .card.xs .c-skills{display:none}
 .card.xs .c-gen{display:none}
-.card.clickable{cursor:pointer}
-.card.clickable:hover{transform:translateY(-6px);box-shadow:0 8px 22px rgba(255,215,0,.35)}
-.card.sel{transform:translateY(-6px);animation:selPulse 1.25s ease-in-out infinite}
+.card.clickable{
+    cursor:pointer;
+    transition:transform .22s cubic-bezier(0.34,1.56,0.64,1),
+               box-shadow .22s ease,
+               filter .22s ease;
+}
+.card.clickable:hover{
+    transform:translateY(-8px) scale(1.03);
+    box-shadow:0 10px 26px rgba(255,215,0,.45),
+               0 0 0 1px rgba(255,215,0,.55);
+    z-index:5;
+}
+.card.sel{
+    transform:translateY(-10px) scale(1.04);
+    z-index:6;
+    animation:selPulse 1.25s ease-in-out infinite;
+}
 @keyframes selPulse{0%,100%{box-shadow:0 0 0 2px #ffd700,0 0 16px 4px rgba(255,215,0,.45)}50%{box-shadow:0 0 0 2px #ffd700,0 0 26px 10px rgba(255,215,0,.75)}}
 .card.dim{opacity:.35;filter:grayscale(.6)}
 .card.grey{opacity:.42;filter:grayscale(.85)}
@@ -331,6 +345,23 @@ h1,h2,h3{color:#ffd700}
 .battle-layout{flex-direction:column}
 .battle-side{width:100%}
 .bf-flex{flex-direction:column}
+.bf-wrap.inactive,
+.bf-wrap.future {
+    flex: 0 0 auto;
+    max-height: 56px;
+    overflow: hidden;
+}
+.bf-wrap.active {
+    flex: 1 1 auto;
+    min-height: 180px;
+    max-height: none !important;
+}
+.bf-wrap.manually-expanded {
+    flex: 1 1 auto;
+    min-height: 180px;
+    max-height: none !important;
+    overflow: visible;
+}
 .card{width:78px;height:108px}
 .card.sm{width:58px;height:82px}
 .c-name{font-size:13px;top:24px}
@@ -835,8 +866,7 @@ const CARD_DB = [
   skills:['權謀','自立'],
   desc:'權謀：同陣地其他友軍戰力-1；本陣每有1張牌，自己戰力+1。\n自立：本陣每有3張牌，自己戰力+1。',
   onEnter(ctx){
-      ctx.myField.forEach(c=>{if(c!==ctx.self&&!c.faceDown)c.mod=(c.mod||0)-1;});
-      ctx.log(`${ctx.self.data.name}【權謀】：其他友軍 -1 戰力`);
+     ctx.log(`${ctx.self.data.name}【權謀】：其他友軍 -1 戰力`);
   }
 },
 { id:'dengai', cardId:'116', name:'鄧艾', title:'矯然的壯士', faction:'wei', cost:2, power:4, emoji:'🏔️', set:'extended',
@@ -1853,9 +1883,16 @@ getPower(inst, pi, bi, atSettle) {
             p += n;
         }
         // 權謀 (鐘會) — own power +1 per card on same field
-        if (sk.includes('權謀')) {
-            p += myField.length;
-        }
+		// 權謀（鐘會）：自己 +1 per card
+		if (sk.includes('權謀')) {
+			p += myField.length;
+		}
+		// v3.2: 權謀 -1 光環，持續對其他友軍生效
+		const zhCount = myField.filter(c =>
+			c !== inst && !c.faceDown && !c.silenced &&
+			(c.data.skills || []).includes('權謀')
+		).length;
+		if (zhCount > 0) p -= zhCount;
         if (sk.includes('自立')) {
             p += Math.floor(myField.length / 3);
         }
@@ -1928,11 +1965,18 @@ openGameMenu() {
             <button class="btn btn-red btn-big" onclick="game.quitToMenu()" style="width:100%;">🚪 離開對戰</button>
             <div style="padding:14px;background:rgba(0,0,0,.3);border-radius:10px;border:1px solid rgba(200,160,64,.3);">
                 <div style="font-size:14px;color:#e8c060;letter-spacing:2px;margin-bottom:10px;">🔍 UI 縮放</div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    ${scaleOpts.map(s => `<button class="ui-scale-btn ${Math.abs(scale - s) < 0.01 ? 'on' : ''}" onclick="game.setUIScale(${s})">${Math.round(s*100)}%</button>`).join('')}
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <input type="range" min="50" max="120" step="5"
+                        value="${Math.round(scale * 100)}"
+                        oninput="document.getElementById('uiscale-val').textContent=this.value+'%';game.setUIScale(this.value/100);"
+                        style="flex:1;min-width:140px;accent-color:#c8a040;">
+                    <span id="uiscale-val"
+                        style="font-size:13px;color:#ffd700;font-weight:bold;min-width:48px;text-align:right;">
+                        ${Math.round(scale * 100)}%
+                    </span>
                 </div>
                 <div style="font-size:12px;color:#a89070;margin-top:10px;line-height:1.7;">
-                    • 縮放會影響整個遊戲介面<br>
+                    • 拖動滑桿調整介面大小（50%~120%）<br>
                     • 手機玩家建議使用 <b>90%</b> 或 <b>80%</b>
                 </div>
             </div>
@@ -1963,7 +2007,8 @@ closeGameMenu() {
 }
 setUIScale(s) {
     setUIScaleGlobal(s);
-    this.openGameMenu();  // 重繪以更新選中狀態
+    const val = document.getElementById('uiscale-val');
+    if (val) val.textContent = Math.round(s * 100) + '%';
 }
 setAISpeed(s) {
     this.aiSpeed = s;
@@ -1988,12 +2033,14 @@ quitToMenu() {
 }
 /* 速度延遲 helper — 只在所有玩家都是 AI 時套用倍率 */
 _delay(ms) {
+    if (this.netMode) return ms;
     if (this.players && this.players.every(p => p.botType)) return ms / (this.aiSpeed || 1);
     return ms;
 }
 _sleep(ms) { return sleep(this._delay(ms)); }
 _sTO(fn, ms) { return setTimeout(fn, this._delay(ms)); }
 renderSpeedPanel() {
+    if (this.netMode) return '';
     if (!this.players || !this.players.every(p => p.botType)) return '';
     const speeds = [0.5, 1, 2, 4];
     return `<div class="ai-speed-panel">
@@ -2259,8 +2306,10 @@ inspect(uid) {
     if (!found) for (const c of this.archive) if (c.uid===uid) { found=c; ownerPi=-1; break; }
     if (!found) for (const c of this.deck) if (c.uid===uid) { found=c; ownerPi=-1; break; }
     if (!found) return;
-    if (ownerPi>=0 && this.isAI(ownerPi) && this.players[ownerPi].hand.includes(found)) return;
-    if (found.faceDown && ownerPi>=0 && ownerPi!==this.current && this.phase==='turn') return;
+	const myIdx = this.netMode ? this.localPlayerIdx : this.current;
+	if (found.faceDown && ownerPi >= 0 && ownerPi !== myIdx) return;
+	if (!this.netMode && found.faceDown && ownerPi >= 0 && this.phase === 'preend'
+    && ownerPi !== this.preEndOrder[this.preEndIdx]) return;
     if (found.faceDown && ownerPi>=0 && this.phase==='preend' && ownerPi!==this.preEndOrder[this.preEndIdx]) return;
     this.inspectCard = found; this.render();
 }
@@ -2467,22 +2516,32 @@ applyRemoteAction(pi, action) {
 }
 
 /* ============ 網路狀態序列化 ============ */
-_serCard(c) {
+_serCard(c, hideIdentity = false) {
     if (!c) return null;
     return {
-        uid: c.uid, dataId: c.data.id,
-        mod: c.mod || 0, faceDown: !!c.faceDown, burn: !!c.burn,
-        silenced: !!c.silenced, activated: !!c.activated,
-        betrayed: !!c.betrayed, betrayedFrom: c.betrayedFrom ?? null,
+        uid: c.uid,
+        dataId: hideIdentity ? '__hidden__' : c.data.id,
+        mod: c.mod || 0,
+        faceDown: !!c.faceDown,
+        burn: !!c.burn,
+        silenced: !!c.silenced,
+        activated: !!c.activated,
+        betrayed: !!c.betrayed,
+        betrayedFrom: c.betrayedFrom ?? null,
         usesLeft: c.usesLeft ?? null,
         pendingSilence: !!c.pendingSilence,
         pendingBurnNext: !!c.pendingBurnNext,
         pendingDamageNext: !!c.pendingDamageNext,
         justDrawn: !!c.justDrawn,
-        lianhuan: !!c.lianhuan, lianhuanArmed: !!c.lianhuanArmed,
-        preparing: !!c.preparing, grantedFubing: !!c.grantedFubing,
-        keepOnField: !!c.keepOnField, guardUsed: !!c.guardUsed,
-        fresh: !!c.fresh, willRemove: !!c.willRemove, willDiscard: !!c.willDiscard,
+        lianhuan: !!c.lianhuan,
+        lianhuanArmed: !!c.lianhuanArmed,
+        preparing: !!c.preparing,
+        grantedFubing: !!c.grantedFubing,
+        keepOnField: !!c.keepOnField,
+        guardUsed: !!c.guardUsed,
+        fresh: !!c.fresh,
+        willRemove: !!c.willRemove,
+        willDiscard: !!c.willDiscard,
         originalOwner: c.originalOwner ?? null,
         _oneShotBuff: c._oneShotBuff ?? null,
         enteredFaceUp: (c.enteredFaceUp === undefined) ? null : !!c.enteredFaceUp
@@ -2490,6 +2549,17 @@ _serCard(c) {
 }
 _unserCard(o) {
     if (!o) return null;
+    // v3.2: 蓋牌占位符（身份未知）
+    if (o.dataId === '__hidden__') {
+        const c = Object.assign({}, o);
+        c.data = {
+            id: '__hidden__', cardId: '???', name: '?',
+            cost: 0, power: 0, skills: [], faction: 'qun',
+            desc: '???', emoji: '❓'
+        };
+        c._placeholder = true;
+        return c;
+    }
     const def = CARD_DB.find(d => d.id === o.dataId);
     if (!def) return null;
     const c = Object.assign({}, o);
@@ -2504,7 +2574,9 @@ serializeForPlayer(forPlayer) {
             idx: p.idx, name: p.name,
             hand: hideHand ? null : p.hand.map(c => this._serCard(c)),
             handCount: p.hand.length,
-            fields: p.fields.map(f => f.map(c => this._serCard(c))),
+            fields: p.fields.map(f => f.map(c =>
+				this._serCard(c, pi !== forPlayer && c.faceDown)
+			)),
             food: p.food, wins: p.wins,
             passed: !!p.passed, mustFaceUp: !!p.mustFaceUp,
             redrawn: !!p.redrawn, mulliganDone: !!p.mulliganDone,
@@ -5044,14 +5116,16 @@ renderBattlefields() {
         const isExpanded = (this.expandedField === bi);
         // 大小判定：手動展開優先，否則當前戰場為大
         const showLarge = isExpanded || (isActive && this.expandedField === null);
-        let wrapCls;
-        if (isExpanded) {
-            wrapCls = 'active manually-expanded expandable';
-        } else if (this.expandedField !== null) {
-            wrapCls = 'inactive expandable';
-        } else {
-            wrapCls = (isActive ? 'active' : (isPast ? 'inactive' : 'future')) + ' expandable';
-        }
+		let wrapCls;
+		if (isExpanded) {
+			wrapCls = 'active manually-expanded expandable';
+		} else if (isActive) {
+			wrapCls = 'active expandable';
+		} else if (isPast) {
+			wrapCls = 'inactive expandable';
+		} else {
+			wrapCls = 'future expandable';
+		}
 
         // 戰場標題
         let headRes = '';
@@ -5596,7 +5670,7 @@ function showSetup() {
     document.getElementById('app').innerHTML = `
     <div class="setup">
         <h1>三 國 風 雲</h1>
-        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.0</div>
+        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.2</div>
 
         <div class="sec"><h3>玩家名稱</h3>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -6398,6 +6472,7 @@ function attachHostHandlers(c, cfg) {
             // First connection — boot up the game
             setTimeout(() => {
                 const names = cfg.playerNames || ['藍方', '紅方'];
+                if (window.__guestName) names[1] = window.__guestName;
                 const hostCfg = Object.assign({}, cfg, {
                     netMode: true, role: 'host', localPlayerIdx: 0, mode: 'pvp',
                     playerNames: names
@@ -6487,6 +6562,10 @@ function connectToHost(code) {
 }
 
 function handleGuestToHost(data) {
+	// v3.2: 若 game 還沒建立，先暫存名字
+	if (data && data.type === 'HELLO' && data.name) {
+		window.__guestName = String(data.name).slice(0, 12);
+	}
     if (!window.game || !window.game.netMode || window.game.role !== 'host') return;
     if (!data || typeof data !== 'object') return;
     if (data.type === 'HELLO') {
