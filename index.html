@@ -1082,6 +1082,43 @@ const CARD_DB = [
   skills:['獨殿'],
   desc:'獨殿：所在陣地結算時，每符合1項自己戰力+1：自己是本陣最後進場的牌、己方本陣牌數少於4、己方未佔優勢、己方劣勢。'
 },
+{ id:'dingfeng', cardId:'216', name:'丁奉', title:'清側重臣', faction:'wu', cost:2, power:3, emoji:'❄️', set:'extended',
+  skills:['短兵'],
+  desc:'短兵：進場時，對陣每有一張正面朝上的牌，自己戰力+1（最多+3）。',
+  onEnter(ctx){
+      const vis = ctx.enemyField.filter(c => !c.faceDown).length;
+      const b = Math.min(3, vis);
+      if (b > 0) {
+          ctx.self.mod = (ctx.self.mod || 0) + b;
+          ctx.log(`${ctx.self.data.name}【短兵】：對陣正面牌 ${vis} 張，+${b} 戰力`);
+      }
+  }
+},
+{ id:'zhangzhao', cardId:'217', name:'張昭', title:'經天之才', faction:'wu', cost:1, power:1, emoji:'📖', set:'extended',
+  skills:['建言','鶴翼'],
+  desc:'建言：進場後，同陣地正面友軍戰力+1。\n鶴翼：你的戰力至少為1。'
+},
+{ id:'zhanghong', cardId:'218', name:'張紘', title:'緯地之才', faction:'wu', cost:1, power:1, emoji:'📜', set:'extended',
+  skills:['調度'],
+  desc:'調度：進場時，查看牌堆頂2張牌，並按任意順序放回，然後補1張牌。',
+  onEnter(ctx){
+      if (ctx.game._inExtraPlay) return;
+      if (ctx.game.deck.length === 0) return;
+      const n = Math.min(2, ctx.game.deck.length);
+      const cards = [];
+      for (let i = 0; i < n; i++) cards.push(ctx.game.deck.pop());
+      ctx.game.scry = { pi: ctx.owner, cards, order: [], source: 'diaodu' };
+      ctx.log(`${ctx.self.data.name}【調度】：查看牌堆頂 ${n} 張`);
+  }
+},
+{ id:'daqiao', cardId:'219', name:'大喬', title:'矜持之花', faction:'wu', cost:0, power:0, emoji:'🌸', set:'extended',
+  skills:['國色','天香'],
+  desc:'國色：己方在場有【孫策】自己戰力+1。\n天香：己方在場有【小喬】自己戰力+1。'
+},
+{ id:'xiaoqiao', cardId:'220', name:'小喬', title:'矯情之花', faction:'wu', cost:0, power:0, emoji:'🌺', set:'extended',
+  skills:['國色','天香'],
+  desc:'國色：己方在場有【周瑜】自己戰力+1。\n天香：己方在場有【大喬】自己戰力+1。'
+},
 /* ============ 群 原版 301-303 ============ */
 { id:'diaochan', cardId:'302', name:'貂蟬', title:'閉月羞花', faction:'qun', cost:2, power:1, emoji:'🌸', set:'vanilla',
   skills:['離間'],
@@ -1243,7 +1280,7 @@ const CARD_DB = [
 ];
 
 const MALE_IDS = ['liubei','guanyu','zhangfei','zhaoyun','machao','huangzhong','weiyan','liaohua','madai','fazheng','xushu','caocao','xiahoudun','xuchu','dianwei','zhangliao','zhanghe','xuhuang','yujin','guojia','simayi','caoren','xiahouyuan','sunquan','zhouyu','lumeng','taishici','chengpu','lusu','ganning','sunce','panzhang','zhoutai','huanggai','luxun','lvbu','huaxiong',
-'guanxing','zhangbao','zhangbaogong','pangtong','masu','menghuo','sunqian','guanping','liyan','mengda','jiangwei','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru','handang','xusheng','lingtong'];
+'guanxing','zhangbao','zhangbaogong','pangtong','masu','menghuo','sunqian','guanping','liyan','mengda','jiangwei','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru','handang','xusheng','lingtong','dingfeng','zhangzhao','zhanghong'];
 CARD_DB.forEach(c => { c.male = MALE_IDS.includes(c.id); });
 
 const CARD_NAME_MAP = {};
@@ -1957,6 +1994,23 @@ getPower(inst, pi, bi, atSettle) {
             // ④ 己方劣勢
             if (myTot < oppTot) cnt++;
             p += cnt;
+        }		
+        // v3.2: 大喬 / 小喬 家族聯動
+        if (d.id === 'daqiao') {
+            const hasSunce = this.players[pi].fields.some(f =>
+                f.some(c => c.data.id === 'sunce' && !c.faceDown));
+            if (hasSunce) p += 1;
+            const hasXiao = this.players[pi].fields.some(f =>
+                f.some(c => c.data.id === 'xiaoqiao' && !c.faceDown));
+            if (hasXiao) p += 1;
+        }
+        if (d.id === 'xiaoqiao') {
+            const hasZhouyu = this.players[pi].fields.some(f =>
+                f.some(c => c.data.id === 'zhouyu' && !c.faceDown));
+            if (hasZhouyu) p += 1;
+            const hasDa = this.players[pi].fields.some(f =>
+                f.some(c => c.data.id === 'daqiao' && !c.faceDown));
+            if (hasDa) p += 1;
         }		
         let baseBonus = 0;
         const buffs = this.players[pi].pendingBuffs?.[bi] || 0;
@@ -2888,7 +2942,9 @@ scryConfirm() {
     order.forEach(uid=>{const c=cards.find(x=>x.uid===uid);if(c)ordered.push(c);});
     cards.forEach(c=>{if(!ordered.includes(c))ordered.push(c);});
     for(let i=ordered.length-1;i>=0;i--)this.deck.push(ordered[i]);
-    const srcLabel = source === 'liaosuan' ? '郭嘉【料算】' : '諸葛亮【觀星】';
+    const srcLabel = source === 'liaosuan' ? '郭嘉【料算】'
+                   : source === 'diaodu'  ? '張紘【調度】'
+                   : '諸葛亮【觀星】';
     this.addLog(pi,`[R${this.round}] ${srcLabel}：調整了牌堆頂 ${cards.length} 張牌`);
     this.scry=null;this.drawOne(pi);this.finishAction();
 }
@@ -4028,6 +4084,16 @@ scoreCardAI(c, pi, diff, ctx) {
         if (myPow < oppPow) score += 5;     // 劣勢：兩個條件都觸發
         else if (myPow === oppPow) score += 3;  // 平手：只觸發一個
     }	
+	    /* 丁奉【短兵】：對陣正面牌越多越強，進場即為一次性 +N */
+    if (d.id === 'dingfeng') {
+        const enemyVis = oppFieldNow.filter(c => !c.faceDown).length;
+        // 進場時 +min(3, enemyVis)，但進場後對陣會多一張（自己不算）
+        const bonus = Math.min(3, enemyVis);
+        score += bonus * 2;                  // 每 +1 戰力算 2 分
+        if (enemyVis >= 3) score += 3;       // 吃滿 +3 額外獎勵
+        // 對手已放棄且沒牌 → 沒加成，扣分
+        if (enemyVis === 0 && opp.passed) score -= 5;
+    }
     /* ============ 魏國續版 AI 專屬評分 ============ */
 
     /* 鐘會【權謀/自立】：場上每張牌 +1，每 3 張再 +1。
@@ -5639,7 +5705,9 @@ renderModals() {
     }
     if (this.scry && !this.isAI(this.scry.pi)) {
         const { cards, order, source } = this.scry;
-        const srcTitle = source === 'liaosuan' ? '郭嘉 · 料算' : '諸葛亮 · 觀星';
+        const srcTitle = source === 'liaosuan' ? '郭嘉 · 料算'
+                       : source === 'diaodu'  ? '張紘 · 調度'
+                       : '諸葛亮 · 觀星';
         h += `<div class="overlay"><div class="modal">
             <h2>${srcTitle}</h2>
             <p>依序點擊卡牌以決定放回牌堆的順序（第一個點擊者置於最頂）</p>
