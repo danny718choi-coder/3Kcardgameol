@@ -1051,7 +1051,37 @@ const CARD_DB = [
   },
   onSettle(ctx){if(ctx.isWinning&&ctx.game.players[ctx.opponent].hand.length>0){const i=Math.floor(ctx.game.rng()*ctx.game.players[ctx.opponent].hand.length);const c=ctx.game.players[ctx.opponent].hand.splice(i,1)[0];ctx.game.archive.push(c);ctx.log(`${ctx.self.data.name}【劫營】：對手棄 1 張牌`);}}
 },
-
+/* ============ 吳 擴充 (213-215) ============ */
+{ id:'handang', cardId:'213', name:'韓當', title:'石城侯', faction:'wu', cost:2, power:3, emoji:'🏹', set:'extended',
+  skills:['飛矢','解煩'],
+  desc:'飛矢：對陣敵軍正面進場時，對其造成1戰力傷害。\n解煩：飛矢造成傷害後，下一個基礎戰力小於3的友軍正面進場時戰力+1。',
+  onEnemyEnter(ctx){
+      const d = ctx.game.applyDamage(ctx.target, 1, ctx.opponent, ctx.field, ctx.self);
+      ctx.log(`${ctx.self.data.name}【飛矢】：${ctx.target.data.name} 受到${d}傷害`);
+      const p = ctx.game.players[ctx.owner];
+      p.oneShotBuffs = p.oneShotBuffs || {};
+      p.oneShotBuffs[ctx.field] = { amount: 1, target: null, armed: true, lowPowerOnly: true };
+      ctx.log(`${ctx.self.data.name}【解煩】：下一個戰力<3的友軍 +1 戰力`);
+  }
+},
+{ id:'xusheng', cardId:'214', name:'徐盛', title:'江東的鐵壁', faction:'wu', cost:2, power:3, emoji:'🏯', set:'extended',
+  skills:['疑城'],
+  desc:'疑城：進場時，自己戰力+本陣地己方背面朝上牌的數量（最多+3）。',
+  onEnter(ctx){
+      if (ctx.self._yicheng_done) return;
+      ctx.self._yicheng_done = true;
+      const fd = ctx.myField.filter(c => c !== ctx.self && c.faceDown).length;
+      const b = Math.min(3, fd);
+      if (b > 0) {
+          ctx.self.mod = (ctx.self.mod || 0) + b;
+          ctx.log(`${ctx.self.data.name}【疑城】：本陣背面牌 ${fd} 張，+${b} 戰力`);
+      }
+  }
+},
+{ id:'lingtong', cardId:'215', name:'凌統', title:'豪情烈膽', faction:'wu', cost:2, power:2, emoji:'🦁', set:'extended',
+  skills:['獨殿'],
+  desc:'獨殿：所在陣地結算時，每符合1項自己戰力+1：自己是本陣最後進場的牌、己方本陣牌數少於4、己方未佔優勢、己方劣勢。'
+},
 /* ============ 群 原版 301-303 ============ */
 { id:'diaochan', cardId:'302', name:'貂蟬', title:'閉月羞花', faction:'qun', cost:2, power:1, emoji:'🌸', set:'vanilla',
   skills:['離間'],
@@ -1162,10 +1192,27 @@ const CARD_DB = [
 },
 { id:'xurong', cardId:'520', name:'徐榮', title:'戰魔', faction:'qun', cost:2, power:4, emoji:'🗡️', set:'extended',
   skills:['伏兵','斬除'], isAmbush:true,
-  desc:'伏兵：可背面進場，陣地結算時翻開。\n斬除：翻開後，可移除對陣1張1糧草敵軍。',
+  desc:'伏兵：可背面進場，陣地結算時翻開。\n斬除：翻開後，移除對陣1張1糧草敵軍；或使該最後的正面敵軍受到1戰力傷害並失去非鎖定技。',
   onFlip(ctx){
-      const foe=ctx.enemyField.find(c=>!c.faceDown&&c.data.cost===1);
-      if(foe){ctx.game.flashRemove(foe);ctx.enemyField.splice(ctx.enemyField.indexOf(foe),1);ctx.game.archive.push(foe);ctx.log(`${ctx.self.data.name}【斬除】：移除 ${foe.data.name}`);}
+      const fodder = ctx.enemyField.filter(c => !c.faceDown && c.data.cost === 1);
+      if (fodder.length > 0) {
+          let best = fodder[0], bestV = ctx.game.cardThreatValue(best);
+          fodder.forEach(c => {
+              const v = ctx.game.cardThreatValue(c);
+              if (v > bestV) { best = c; bestV = v; }
+          });
+          ctx.game.flashRemove(best);
+          ctx.enemyField.splice(ctx.enemyField.indexOf(best), 1);
+          ctx.game.archive.push(best);
+          ctx.log(`${ctx.self.data.name}【斬除】：移除敵方 ${best.data.name}（1糧，威脅值 ${bestV}）`);
+          return;
+      }
+      const target = ctx.game._validLastFaceUpEnemy(ctx.opponent, ctx.field);
+      if (!target) return;
+      const dmg = ctx.game.applyDamage(target, 1, ctx.opponent, ctx.field, ctx.self);
+      const nonLocked=(target.data.skills||[]).filter(s=>!LOCKED_SKILLS.includes(s));
+      if(nonLocked.length && !target.silenced) target.silenced = true;
+      ctx.log(`${ctx.self.data.name}【斬除】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
   }
 },
 { id:'dongzhuo', cardId:'521', name:'董卓', title:'魔王', faction:'qun', cost:3, power:6, emoji:'👹', set:'extended',
@@ -1196,7 +1243,7 @@ const CARD_DB = [
 ];
 
 const MALE_IDS = ['liubei','guanyu','zhangfei','zhaoyun','machao','huangzhong','weiyan','liaohua','madai','fazheng','xushu','caocao','xiahoudun','xuchu','dianwei','zhangliao','zhanghe','xuhuang','yujin','guojia','simayi','caoren','xiahouyuan','sunquan','zhouyu','lumeng','taishici','chengpu','lusu','ganning','sunce','panzhang','zhoutai','huanggai','luxun','lvbu','huaxiong',
-'guanxing','zhangbao','zhangbaogong','pangtong','masu','menghuo','sunqian','guanping','liyan','mengda','jiangwei','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru'];
+'guanxing','zhangbao','zhangbaogong','pangtong','masu','menghuo','sunqian','guanping','liyan','mengda','jiangwei','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru','handang','xusheng','lingtong'];
 CARD_DB.forEach(c => { c.male = MALE_IDS.includes(c.id); });
 
 const CARD_NAME_MAP = {};
@@ -1896,6 +1943,21 @@ getPower(inst, pi, bi, atSettle) {
         if (sk.includes('自立')) {
             p += Math.floor(myField.length / 3);
         }
+        // v3.2: 凌統【獨殿】：結算時每符合1項 +1
+        if (sk.includes('獨殿') && atSettle) {
+            let cnt = 0;
+            // ① 自己是本陣最後進場的牌
+            if (myField.length > 0 && myField[myField.length - 1] === inst) cnt++;
+            // ② 己方本陣牌數少於4
+            if (myField.length < 4) cnt++;
+            // ③ 己方未佔優勢
+            const myTot = this.fieldPower(pi, bi, false);
+            const oppTot = this.fieldPower(this.opponentOf(pi), bi, false);
+            if (myTot <= oppTot) cnt++;
+            // ④ 己方劣勢
+            if (myTot < oppTot) cnt++;
+            p += cnt;
+        }		
         let baseBonus = 0;
         const buffs = this.players[pi].pendingBuffs?.[bi] || 0;
         if (buffs > 0) baseBonus += buffs;
@@ -2404,10 +2466,13 @@ doPlay(asAmbush) {
     // 忘隙一次性 buff：在進場觸發前綁定哨兵，讓 getPower 能吃到
     const osb = p.oneShotBuffs && p.oneShotBuffs[bi];
     if (osb && osb.armed && !inst.faceDown) {
-        // 若這張是設 buff 的本人（李典）或已在綁定前存在，就跳過
-        inst._oneShotBuff = osb.amount;
-        osb.armed = false;
-        osb.target = inst;
+        // v3.2: 韓當【解煩】限定基礎戰力<3 的友軍
+        const passFilter = !osb.lowPowerOnly || inst.data.power < 3;
+        if (passFilter) {
+            inst._oneShotBuff = osb.amount;
+            osb.armed = false;
+            osb.target = inst;
+        }
     }
 
     if (!ambush) this.runEntryTriggers(pi, inst, bi);
@@ -3932,6 +3997,36 @@ scoreCardAI(c, pi, diff, ctx) {
         // 己方有強卡需要保護 → 護衛有價值
         const highValueAlly = myFieldNow.some(c => !c.faceDown && c.data.power >= 4);
         if (highValueAlly) score += 3;
+    }
+    /* ============ 吳國擴充 (213-215) AI 評分 ============ */
+    /* 韓當【飛矢】：敵方有正面牌時價值大增 */
+    if (d.id === 'handang') {
+        const enemyVis = oppFieldNow.filter(c => !c.faceDown).length;
+        score += enemyVis * 2;
+        const lowAllies = p.hand.filter(c => !c.data.forceFaceDown && c.data.power < 3).length;
+        if (lowAllies >= 2) score += 3;
+        if (opp.passed) score -= 3;
+    }
+    /* 徐盛【疑城】：本陣背面牌越多越強 */
+    if (d.id === 'xusheng') {
+        const fdOnField = myFieldNow.filter(c => c.faceDown).length;
+        score += fdOnField * 4;
+        const potentialFubing = p.hand.filter(c =>
+            (c.data.skills||[]).includes('伏兵') || c.data.forceFaceDown
+        ).length;
+        if (potentialFubing >= 2) score += 4;
+    }
+    /* 凌統【獨殿】：牌少時加分，落後時加分 */
+    if (d.id === 'lingtong') {
+        const allyCnt = myFieldNow.filter(c => !c.faceDown).length;
+        // 自己是本陣最後進場的牌（剛出=最後）
+        if (allyCnt === 0) score += 5;      // 進場即為最後一張
+        else if (allyCnt === 1) score += 2;
+        // 己方本陣牌數<4（進場後）
+        if (allyCnt + 1 < 4) score += 3;
+        // 己方未佔優勢/劣勢
+        if (myPow < oppPow) score += 5;     // 劣勢：兩個條件都觸發
+        else if (myPow === oppPow) score += 3;  // 平手：只觸發一個
     }	
     /* ============ 魏國續版 AI 專屬評分 ============ */
 
