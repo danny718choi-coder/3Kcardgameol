@@ -9,6 +9,87 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#140900;background-image:radial-gradient(ellipse at 50% 0%,rgba(120,60,0,.28) 0%,transparent 70%),radial-gradient(ellipse at 50% 100%,rgba(120,60,0,.28) 0%,transparent 70%);color:#f0e6d0;font-family:'Microsoft YaHei','PingFang TC','SimHei',sans-serif;min-height:100vh;padding:10px;user-select:none}
 #app{max-width:1320px;margin:0 auto}
+/* ============ 玩家配色 CSS 變數（隨主題變化） ============ */
+:root {
+    --pc0-bg: rgba(20,60,120,.18);
+    --pc0-border: rgba(58,122,200,.55);
+    --pc0-text: #6fb6ff;
+    --pc1-bg: rgba(120,20,20,.18);
+    --pc1-border: rgba(200,58,58,.55);
+    --pc1-text: #ff7b7b;
+    --pc2-bg: rgba(20,100,40,.18);
+    --pc2-border: rgba(58,140,58,.55);
+    --pc2-text: #7cff7c;
+    --pc3-bg: rgba(100,20,100,.18);
+    --pc3-border: rgba(160,58,200,.55);
+    --pc3-text: #d090ff;
+    --card-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+
+/* 墨韻（淺色） */
+body[data-theme="ink"] {
+    --pc0-bg: rgba(26,74,138,.10);
+    --pc0-border: rgba(26,74,138,.45);
+    --pc0-text: #1a4a8a;
+    --pc1-bg: rgba(165,40,40,.10);
+    --pc1-border: rgba(165,40,40,.45);
+    --pc1-text: #a52828;
+    --pc2-bg: rgba(45,106,45,.10);
+    --pc2-border: rgba(45,106,45,.45);
+    --pc2-text: #2d6a2d;
+    --pc3-bg: rgba(106,40,160,.10);
+    --pc3-border: rgba(106,40,160,.45);
+    --pc3-text: #6a28a0;
+    --card-shadow: 0 2px 6px rgba(80,50,20,.15);
+}
+
+/* 竹簡（淺色） */
+body[data-theme="bamboo"] {
+    --pc0-bg: rgba(26,74,138,.10);
+    --pc0-border: rgba(26,74,138,.45);
+    --pc0-text: #1a4a8a;
+    --pc1-bg: rgba(150,50,30,.10);
+    --pc1-border: rgba(150,50,30,.45);
+    --pc1-text: #8a2a1a;
+    --pc2-bg: rgba(45,90,25,.10);
+    --pc2-border: rgba(45,90,25,.50);
+    --pc2-text: #2d5a15;
+    --pc3-bg: rgba(90,40,120,.10);
+    --pc3-border: rgba(90,40,120,.45);
+    --pc3-text: #5a2880;
+    --card-shadow: 0 2px 6px rgba(60,80,40,.18);
+}
+
+/* 黃沙（淺色） */
+body[data-theme="sand"] {
+    --pc0-bg: rgba(40,70,120,.10);
+    --pc0-border: rgba(40,70,120,.45);
+    --pc0-text: #2a4a7a;
+    --pc1-bg: rgba(140,40,20,.10);
+    --pc1-border: rgba(140,40,20,.50);
+    --pc1-text: #7a2a10;
+    --pc2-bg: rgba(80,90,20,.10);
+    --pc2-border: rgba(80,90,20,.50);
+    --pc2-text: #5a5a10;
+    --pc3-bg: rgba(90,40,90,.10);
+    --pc3-border: rgba(90,40,90,.45);
+    --pc3-text: #6a2860;
+    --card-shadow: 0 2px 6px rgba(80,40,10,.20);
+}
+
+/* 月夜（深藍）— 微調亮度 */
+body[data-theme="moon"] {
+    --pc2-text: #a8ffb0;
+    --pc3-text: #d8a0ff;
+    --card-shadow: 0 2px 8px rgba(0,0,0,.55);
+}
+
+/* 赤壁（深紅）— 微調亮度 */
+body[data-theme="red"] {
+    --pc0-text: #90c8ff;
+    --pc2-text: #9cff9c;
+    --card-shadow: 0 2px 8px rgba(0,0,0,.6);
+}
 h1,h2,h3{color:#ffd700}
 .btn{padding:9px 20px;font-size:15px;font-weight:bold;border:none;border-radius:6px;cursor:pointer;font-family:inherit;transition:.18s;background:linear-gradient(180deg,#8a6020,#5a3d10);color:#ffe9a0;border:1px solid #c8a040}
 .btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.15)}
@@ -19,7 +100,7 @@ h1,h2,h3{color:#ffd700}
 .btn-blue{background:linear-gradient(180deg,#1a4a8a,#0d2a52);border-color:#3a7ac8;color:#cfe6ff}
 .btn-gold{background:linear-gradient(180deg,#c8a040,#8a6020);border-color:#ffd700;color:#fff}
 .btn-big{font-size:19px;padding:13px 40px}
-.card{width:96px;height:134px;border-radius:7px;flex-shrink:0;position:relative;transition:transform .18s,box-shadow .18s,filter .18s;cursor:default}
+.card{width:96px;height:134px;border-radius:7px;flex-shrink:0;position:relative;transition:transform .18s,box-shadow .18s,filter .18s;cursor:default;box-shadow:var(--card-shadow)}
 .card.sm{width:70px;height:98px;border-radius:5px}
 .card.xs{width:52px;height:74px;border-radius:4px}
 .card-back{width:100%;height:100%;border-radius:inherit;background:linear-gradient(135deg,#3a2a1a,#241408);border:2px solid #6a5a3a;display:flex;align-items:center;justify-content:center}
@@ -63,10 +144,10 @@ h1,h2,h3{color:#ffd700}
                filter .22s ease;
 }
 .card.clickable:hover{
-    transform:translateY(-8px) scale(1.03);
-    box-shadow:0 10px 26px rgba(255,215,0,.45),
-               0 0 0 1px rgba(255,215,0,.55);
-    z-index:5;
+    transform: translateY(-10px) scale(1.04) rotate(-1deg);
+    box-shadow: 0 14px 30px rgba(255,215,0,.5),
+                0 0 0 1px rgba(255,215,0,.6);
+    z-index: 5;
 }
 .card.sel{
     transform:translateY(-10px) scale(1.04);
@@ -1610,6 +1691,13 @@ body[data-theme="sand"]::before {
 
 /* 全域粒子開關 */
 body[data-particles="off"]::before { display: none !important; }
+/* ============ 狀態指示文字（主題自適應） ============ */
+.status-ok { color: #7cff7c; }
+body[data-theme="ink"]    .status-ok { color: #2d6a2d; }
+body[data-theme="bamboo"] .status-ok { color: #2d5a15; }
+body[data-theme="sand"]   .status-ok { color: #6a3a10; }
+body[data-theme="moon"]   .status-ok { color: #7cffae; }
+body[data-theme="red"]    .status-ok { color: #ffcf7c; }
 </style>
 </head>
 <body>
@@ -1664,6 +1752,24 @@ const safeStore = {
     del(key) { try { localStorage.removeItem(key); } catch (e) {} },
     delSession(key) { try { sessionStorage.removeItem(key); } catch (e) {} }
 };
+
+/* ============ v3.7: 卡片勝率統計（存在 localStorage） ============ */
+const CARD_STATS_KEY = 'sanguo_cardStats';
+function loadCardStats() {
+    try {
+        const raw = localStorage.getItem(CARD_STATS_KEY);
+        if (!raw) return { ai: {}, player: {} };
+        const parsed = JSON.parse(raw);
+        return { ai: parsed.ai || {}, player: parsed.player || {} };
+    } catch (e) { return { ai: {}, player: {} }; }
+}
+function saveCardStats(stats) {
+    try { localStorage.setItem(CARD_STATS_KEY, JSON.stringify(stats)); }
+    catch (e) { console.warn('saveCardStats failed:', e); }
+}
+function clearCardStats() {
+    try { localStorage.removeItem(CARD_STATS_KEY); } catch (e) {}
+}
 /* ============ 全域 UI 縮放 ============ */
 function getUIScale() {
     try { const s = parseFloat(localStorage.getItem('sanguo_uiscale') || '1'); return (s && s > 0.3 && s < 3) ? s : 1; }
@@ -1796,10 +1902,10 @@ const CHAT_EMOJI = [
 ];
 
 const PLAYER_COLORS = [
-    { bg: 'rgba(20,60,120,.18)',  border: 'rgba(58,122,200,.55)',  text: '#6fb6ff', name: '藍' },
-    { bg: 'rgba(120,20,20,.18)',  border: 'rgba(200,58,58,.55)',   text: '#ff7b7b', name: '紅' },
-    { bg: 'rgba(20,100,40,.18)',  border: 'rgba(58,140,58,.55)',   text: '#7cff7c', name: '綠' },
-    { bg: 'rgba(100,20,100,.18)', border: 'rgba(160,58,200,.55)',  text: '#d090ff', name: '紫' }
+    { bg: 'var(--pc0-bg)', border: 'var(--pc0-border)', text: 'var(--pc0-text)', name: '藍' },
+    { bg: 'var(--pc1-bg)', border: 'var(--pc1-border)', text: 'var(--pc1-text)', name: '紅' },
+    { bg: 'var(--pc2-bg)', border: 'var(--pc2-border)', text: 'var(--pc2-text)', name: '綠' },
+    { bg: 'var(--pc3-bg)', border: 'var(--pc3-border)', text: 'var(--pc3-text)', name: '紫' }
 ];
 const FACTION_INFO = {
     shu : { name:'蜀', cls:'shu' },
@@ -3040,6 +3146,9 @@ constructor(cfg) {
     this._handoffDoneThisTurn = false;
     this.cardsPlayedCount = 0;
     this._simaYiLastChanceUsed = false;
+    // v3.6: destroy flag & timer tracking (fix "quit doesn't stop AI")
+    this._destroyed = false;
+    this._allTimers = new Set();
     this._rematchVotes = [false, false];   // Phase 3: [host, guest]
     this.sendToBottom = !!(cfg.sendToBottom); // true = flip cards & redraw discards go to bottom of draw pile
     this.aiTrashTalk  = cfg.aiTrashTalk  !== false;   // 預設開啟
@@ -3202,7 +3311,7 @@ newInst(def) {
         pendingSilence: false, pendingBurnNext: false, pendingDamageNext: false, justDrawn: false,
         lianhuan: false, lianhuanArmed: false, preparing: false,
         grantedFubing: false, keepOnField: false, guardUsed: false, _oneShotBuff: undefined,
-        enteredFaceUp: null };
+        enteredFaceUp: null, _jiushiUsed: false };
 }
 dealOpening() {
     for (let pi = 0; pi < this.numPlayers; pi++) {
@@ -3237,7 +3346,7 @@ reshuffle() {
         c.pendingSilence=false; c.pendingBurnNext=false; c.pendingDamageNext=false;
         c.justDrawn=false; c.lianhuan=false; c.lianhuanArmed=false;
         c.grantedFubing=false; c.keepOnField=false; c.guardUsed=false; c._oneShotBuff=undefined;
-        c.preparing=false;
+        c.preparing=false; c._jiushiUsed=false;
     });
     for (let pi = 0; pi < this.numPlayers; pi++)
         for (let bi = 0; bi < this.fieldCount; bi++)
@@ -3405,6 +3514,12 @@ totalPower(pi, atSettle) { let t=0; for (let bi=0;bi<this.fieldCount;bi++) t+=th
 roundLosing(pi) { return this.totalPower(pi, false) < this.totalPower(this.opponentOf(pi), false); }
 
 clearAllTimers() {
+    // v3.6: mark destroyed so any in-flight timer callbacks become no-ops
+    this._destroyed = true;
+    if (this._allTimers) {
+        this._allTimers.forEach(id => { try { clearTimeout(id); } catch(e){} });
+        this._allTimers.clear();
+    }
     ['backBtnTimer','countdownTimer','aiTimer','flipAutoTimer','settleAutoTimer'].forEach(k=>{
         if (this[k]) { clearTimeout(this[k]); this[k]=null; }
     });
@@ -3450,7 +3565,7 @@ openGameMenu() {
             <div style="padding:14px;background:rgba(0,0,0,.3);border-radius:10px;border:1px solid rgba(200,160,64,.3);">
                 <div style="font-size:14px;color:#e8c060;letter-spacing:2px;margin-bottom:10px;">⚡ AI 速度</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    ${[0.5, 1, 2, 4].map(s => `<button class="ui-scale-btn ${Math.abs(this.aiSpeed - s) < 0.01 ? 'on' : ''}" onclick="game.setAISpeed(${s})">${s}x</button>`).join('')}
+                    ${[0.5, 1, 2, 4, 10].map(s => `<button class="ui-scale-btn ${Math.abs(this.aiSpeed - s) < 0.01 ? 'on' : ''}" onclick="game.setAISpeed(${s})">${s}x</button>`).join('')}
                 </div>
                 <div style="font-size:12px;color:#a89070;margin-top:10px;line-height:1.7;">
                     • 只影響「等待延遲」時間<br>
@@ -3505,11 +3620,56 @@ _delay(ms) {
     return ms;
 }
 _sleep(ms) { return sleep(this._delay(ms)); }
-_sTO(fn, ms) { return setTimeout(fn, this._delay(ms)); }
+_sTO(fn, ms) {
+    // v3.6: track timer so we can cancel it on destroy; also guard the callback.
+    const id = setTimeout(() => {
+        if (this._allTimers) this._allTimers.delete(id);
+        if (this._destroyed) return;
+        try { fn(); } catch(e) { console.error('[timer]', e); }
+    }, this._delay(ms));
+    if (this._allTimers) this._allTimers.add(id);
+    return id;
+}
+
+/* ============ v3.7: 卡片統計掛鉤 ============ */
+_statBucketForPlayer(pi) {
+    if (this.netMode) return null;              // 網路對戰不記錄
+    const p = this.players[pi];
+    if (!p) return null;
+    // AI 桶：全場都是「困難 AI」
+    const allHardBots = this.players.every(x => x.botType === 'hard');
+    if (allHardBots) return 'ai';
+    // 玩家桶：這一位是人類（botType = null）
+    if (!p.botType) return 'player';
+    return null;                                // 簡單/普通 AI 不記錄
+}
+_trackCardPlayed(pi, cardId) {
+    if (!cardId) return;
+    const bucket = this._statBucketForPlayer(pi);
+    if (!bucket) return;
+    const stats = loadCardStats();
+    if (!stats[bucket][cardId]) stats[bucket][cardId] = { plays: 0, wins: 0 };
+    stats[bucket][cardId].plays++;
+    saveCardStats(stats);
+}
+_trackRoundWin(winnerPi, bi) {
+    const bucket = this._statBucketForPlayer(winnerPi);
+    if (!bucket) return;
+    const field = this.players[winnerPi].fields[bi] || [];
+    if (field.length === 0) return;
+    const stats = loadCardStats();
+    field.forEach(c => {
+        const id = c.data && c.data.id;
+        if (!id) return;
+        if (!stats[bucket][id]) stats[bucket][id] = { plays: 0, wins: 0 };
+        stats[bucket][id].wins++;
+    });
+    saveCardStats(stats);
+}
 renderSpeedPanel() {
     if (this.netMode) return '';
     if (!this.players || !this.players.every(p => p.botType)) return '';
-    const speeds = [0.5, 1, 2, 4];
+    const speeds = [0.5, 1, 2, 4, 10];
     return `<div class="ai-speed-panel">
         <span class="lbl">⚡ AI 速度</span>
         ${speeds.map(s => `<button class="sp-btn ${Math.abs(this.aiSpeed - s) < 0.01 ? 'on' : ''}" onclick="game.setAISpeed(${s})">${s}x</button>`).join('')}
@@ -3539,9 +3699,14 @@ renderCountdown() {
 }
 
 setupFlip() {
-    const a = this.deck.pop(), b = this.deck.pop();
-    this.flipCards = [a || this.newInst(CARD_DB[0]), b || this.newInst(CARD_DB[1])];
-    this.flipRevealed = [false, false];
+    const cards = [];
+    for (let i = 0; i < this.numPlayers; i++) {
+        if (this.deck.length === 0) this.reshuffle();
+        const c = this.deck.pop();
+        cards.push(c || this.newInst(CARD_DB[0]));
+    }
+    this.flipCards = cards;
+    this.flipRevealed = new Array(this.numPlayers).fill(false);
     this.firstPlayer = null;
     if (this.flipAutoTimer) { clearTimeout(this.flipAutoTimer); this.flipAutoTimer = null; }
     this._checkAutoFlip();
@@ -3550,8 +3715,8 @@ setupFlip() {
 _checkAutoFlip() {
     if (this.state !== 'flip') return;
     if (this.flipAutoTimer) { clearTimeout(this.flipAutoTimer); this.flipAutoTimer = null; }
-    for (let i = 0; i < 2; i++) {
-        if (!this.flipRevealed[i] && i < this.numPlayers && this.isAI(i)) {
+    for (let i = 0; i < this.numPlayers; i++) {
+        if (!this.flipRevealed[i] && this.isAI(i)) {
             this.flipAutoTimer = setTimeout(() => {
                 this.flipAutoTimer = null;
                 if (this.state === 'flip' && !this.flipRevealed[i]) this.revealFlip(i);
@@ -3559,8 +3724,8 @@ _checkAutoFlip() {
             return;
         }
     }
-    if (this.flipRevealed[0] && this.flipRevealed[1] && this.firstPlayer !== null
-        && this.players.every(p => p.botType)) {
+    const allRevealed = this.flipRevealed.every(x => x);
+    if (allRevealed && this.firstPlayer !== null && this.players.every(p => p.botType)) {
         this.flipAutoTimer = setTimeout(() => {
             this.flipAutoTimer = null;
             this.beginBattle();
@@ -3569,16 +3734,12 @@ _checkAutoFlip() {
 }
 autoFlipAI() {
     if (this.state !== 'flip') return;
-    if (!this.flipRevealed[0]) {
-        this.revealFlip(0);
-        if (this.state !== 'flip') return;
-        this.flipAutoTimer = setTimeout(() => {
-            this.flipAutoTimer=null;
-            if (this.state==='flip' && !this.flipRevealed[1]) this.revealFlip(1);
-        }, 700);
-        return;
+    for (let i = 0; i < this.numPlayers; i++) {
+        if (!this.flipRevealed[i] && this.isAI(i)) {
+            this.revealFlip(i);
+            return;
+        }
     }
-    if (!this.flipRevealed[1]) this.revealFlip(1);
 }
 _sendCard(c) {
     // Route a card to either the discard pile or the bottom of the draw pile.
@@ -3588,7 +3749,7 @@ _sendCard(c) {
     c.pendingSilence = false; c.pendingBurnNext = false; c.pendingDamageNext = false;
     c.justDrawn = false; c.lianhuan = false; c.lianhuanArmed = false;
     c.grantedFubing = false; c.keepOnField = false; c.guardUsed = false;
-    c._oneShotBuff = undefined; c.preparing = false;
+    c._oneShotBuff = undefined; c.preparing = false; c._jiushiUsed = false;
     c.willRemove = false; c.willDiscard = false; c.originalOwner = undefined;
     if (this.sendToBottom) this.deck.unshift(c);   // bottom = unshift (deck uses pop from end)
     else this.archive.push(c);
@@ -3596,39 +3757,63 @@ _sendCard(c) {
 revealFlip(i) {
     if (this.state !== 'flip' || this.flipRevealed[i]) return;
     this.flipRevealed[i] = true;
-    if (this.flipRevealed[0] && this.flipRevealed[1]) {
-        const p0 = this.flipCards[0].data.power;
-        const p1 = this.flipCards[1].data.power;
-        if (p0 === p1) {
-            this.addLog('sys', `翻牌：${this.flipCards[0].data.name}(${p0}) vs ${this.flipCards[1].data.name}(${p1}) → 平手！重新翻牌`);
-            this.recordEvent('flip_tie', { blueCard: this.flipCards[0].data.id, redCard: this.flipCards[1].data.id, power: p0 });
-            // Route both tied cards
-            this._sendCard(this.flipCards[0]);
-            this._sendCard(this.flipCards[1]);
+    const allRevealed = this.flipRevealed.every(x => x);
+    if (allRevealed) {
+        const powers = this.flipCards.map(c => c.data.power);
+        const maxPow = Math.max(...powers);
+        const leaders = [];
+        for (let p = 0; p < this.numPlayers; p++) {
+            if (powers[p] === maxPow) leaders.push(p);
+        }
+
+        if (leaders.length > 1) {
+            // Tie → discard all cards, redraw
+            const names = this.flipCards.map((c, idx) =>
+                `${this.players[idx].name} ${c.data.name}(${c.data.power})`).join(' vs ');
+            this.addLog('sys', `翻牌：${names} → 平手！重新翻牌`);
+            this.recordEvent('flip_tie', {
+                cards: this.flipCards.map(c => c.data.id),
+                powers: powers.slice(),
+                tiedPlayers: leaders.slice()
+            });
+            this.flipCards.forEach(c => this._sendCard(c));
             this.firstPlayer = null;
             this.render();
             this._sTO(() => {
                 if (this.state !== 'flip') return;
-                if (this.deck.length < 2) this.reshuffle();
-                if (this.deck.length < 2) {
+                if (this.deck.length < this.numPlayers) this.reshuffle();
+                if (this.deck.length < this.numPlayers) {
                     this.firstPlayer = 0;
                     this.addLog('sys', '牌庫耗盡，預設藍方先手');
                     this.render();
                     return;
                 }
-                this.flipCards = [this.deck.pop(), this.deck.pop()];
-                this.flipRevealed = [false, false];
+                const newCards = [];
+                for (let k = 0; k < this.numPlayers; k++) newCards.push(this.deck.pop());
+                this.flipCards = newCards;
+                this.flipRevealed = new Array(this.numPlayers).fill(false);
                 this.render();
                 this._checkAutoFlip();
             }, 900);
             return;
         }
-        this.firstPlayer = (p0 > p1) ? 0 : 1;
-        this.addLog('sys', `翻牌：${this.flipCards[0].data.name}(${p0}) vs ${this.flipCards[1].data.name}(${p1}) → ${this.players[this.firstPlayer].name}先手`);
-        this.recordEvent('flip_result', {blueCard:this.flipCards[0].data.id,bluePower:p0,redCard:this.flipCards[1].data.id,redPower:p1,firstPlayer:this.firstPlayer});
-        // Route flip cards after deciding
-        this._sendCard(this.flipCards[0]);
-        this._sendCard(this.flipCards[1]);
+
+        // Single winner
+        this.firstPlayer = leaders[0];
+        const names = this.flipCards.map((c, idx) =>
+            `${this.players[idx].name} ${c.data.name}(${c.data.power})`).join(' vs ');
+        this.addLog('sys', `翻牌：${names} → ${this.players[this.firstPlayer].name} 先手`);
+        this.recordEvent('flip_result', {
+            cards: this.flipCards.map(c => c.data.id),
+            powers: powers.slice(),
+            firstPlayer: this.firstPlayer,
+            // Legacy 2P-compatible fields (used by old replays)
+            blueCard: this.flipCards[0].data.id,
+            bluePower: powers[0],
+            redCard: this.flipCards[1] ? this.flipCards[1].data.id : null,
+            redPower: this.flipCards[1] ? powers[1] : 0
+        });
+        this.flipCards.forEach(c => this._sendCard(c));
     }
     this.render();
     this._checkAutoFlip();
@@ -3844,10 +4029,12 @@ doPlay(asAmbush) {
     inst.grantedFubing = !!(ambush && !inst.data.isAmbush && this.hasShefuBonus(pi, bi));
     if (inst.grantedFubing) this.addLog(pi, `[R${this.round}] 程昱【設伏】：${inst.data.name} 獲得【伏兵】技能`);
     p.fields[bi].push(inst);
+    this._trackCardPlayed(pi, inst.data.id);
     this.cardsPlayedCount++;
     p.cardsPlayedByPlayer = (p.cardsPlayedByPlayer || 0) + 1;
 
     if (!ambush) {
+        // 記錄「這張牌是該玩家在這塊戰場上最後的正面進場牌」
         // 記錄「這張牌是該玩家在這塊戰場上最後的正面進場牌」
         this.players[pi].lastFaceUpEnemy[bi] = inst;
     }
@@ -4017,7 +4204,8 @@ _serCard(c, hideIdentity = false) {
         willDiscard: !!c.willDiscard,
         originalOwner: c.originalOwner ?? null,
         _oneShotBuff: c._oneShotBuff ?? null,
-        enteredFaceUp: (c.enteredFaceUp === undefined) ? null : !!c.enteredFaceUp
+        enteredFaceUp: (c.enteredFaceUp === undefined) ? null : !!c.enteredFaceUp,
+        _jiushiUsed: !!c._jiushiUsed
     };
 }
 _unserCard(o) {
@@ -4339,7 +4527,7 @@ lyCancel() { this.lianying=null; this.render(); }
 findJiushiCard(pi) {
     const p = this.players[pi];
     return p.fields.flat().find(c =>
-        !c.faceDown && !c.silenced && !c.activated &&
+        !c.faceDown && !c.silenced && !c.activated && !c._jiushiUsed &&
         (c.data.skills||[]).includes('酒詩') &&
         (p.cardsPlayedByPlayer||0) >= 7);
 }
@@ -4353,7 +4541,7 @@ activateJiushi() {
         const idx = p.fields[bi].indexOf(c);
         if (idx >= 0) { p.fields[bi].splice(idx, 1); break; }
     }
-    c.mod = 0; c.activated = true;
+    c.mod = 0; c.activated = true; c._jiushiUsed = true;
     p.hand.push(c);
     p.food = Math.min(this.cfg.maxFood, p.food + c.data.cost);
     this.addLog(pi, `[R${this.round}] 曹植【酒詩】：返回手牌並補回 ${c.data.cost} 糧`);
@@ -4456,16 +4644,33 @@ xunyuSkip() {
 /* ============ 荀攸【奇策】 ============ */
 chooseXunyouExtra(pi, bi) {
     const p = this.players[pi];
-    const eligible = p.hand.filter(c => !c.data.forceFaceDown && c.data.cost <= p.food);
+    // v3.5：排除上將（奇策打出上將不會自動放棄，時機容易錯亂）
+    const eligible = p.hand.filter(c =>
+        !c.data.forceFaceDown &&
+        !c.data.isGeneral &&
+        c.data.cost <= p.food
+    );
     if (eligible.length === 0) return null;
+    const opp = this.players[this.opponentOf(pi)];
     let best = null, bestScore = -Infinity;
     for (const c of eligible) {
+        // v3.5：加入完整 ctx，避免評分函式拿到 undefined 而少扣分
         const score = this.scoreCardAI(c, pi, this.getAIDifficulty(pi), {
             myPow: this.fieldPower(pi, bi, false),
-            oppPow: this.fieldPower(this.opponentOf(pi), bi, false)
+            oppPow: this.fieldPower(this.opponentOf(pi), bi, false),
+            isFirstMoveOfRound: false,
+            iAmResponding: false,
+            alreadyWinningBig: false,
+            alreadyWonRound1: false,
+            oppWonRound1: false,
+            iAmAheadInMatch: p.wins > opp.wins,
+            iAmBehindInMatch: p.wins < opp.wins,
+            mustWinThisRound: (opp.wins === 1)
         });
         if (score > bestScore) { bestScore = score; best = c; }
     }
+    // v3.5：若最佳選項戰力太低，乾脆只拿 +1 糧
+    if (!best || best.data.power < 1) return null;
     return best;
 }
 performQicePlay(pi, inst, bi) {
@@ -4484,11 +4689,12 @@ performQicePlay(pi, inst, bi) {
     inst.enteredFaceUp = true;
     inst.grantedFubing = false;
     p.fields[bi].push(inst);
+    this._trackCardPlayed(pi, inst.data.id);
     this.cardsPlayedCount++;
     p.cardsPlayedByPlayer = (p.cardsPlayedByPlayer || 0) + 1;
     this.players[pi].lastFaceUpEnemy[bi] = inst;
     this.addLog(pi, `[R${this.round}] 荀攸【奇策】：追加 ${inst.data.name}（-${inst.data.cost}糧｜餘${p.food}）`);
-
+	
     // 連環窗口
     const oppPangtong = this.players[this.opponentOf(pi)].fields[bi].find(c =>
         !c.faceDown && !c.silenced && c.data.id === 'pangtong' && c.activated);
@@ -4758,7 +4964,7 @@ doPreEndAI() {
     const myVisible = this.fieldPower(pi, bi, false);
     const oppVisible = this.fieldPower(oppPi, bi, false);
     const myFlipPotential = p.fields[bi].filter(c => c.faceDown).length * 3;
-    const oppFlipPotential = opp.fields[bi].filter(c => c.faceDown).length * 3;
+    const oppFlipPotential = opp.fields[bi].filter(c => c.faceDown).length * 3.5;
 
     const myEff = myVisible + myFlipPotential;
     const oppEff = oppVisible + oppFlipPotential;
@@ -4777,6 +4983,13 @@ doPreEndAI() {
     else invest = 5;                                        // 大落後 → 梭哈
 
     if (invest === 0) { this.preEndAct(); return; }
+	
+	// v3.6：非最後一輪 + 極大落後 → 直接放棄，保留資源給下一輪
+	const roundIsFinal = (this.round >= this.fieldCount);
+	if (!roundIsFinal && margin < -10 && p.hand.length >= 3) {
+		this.preEndAct();
+		return;
+	}
 
     // 找可出的牌
     const playable = p.hand.filter(c =>
@@ -4829,12 +5042,13 @@ doPreEndPlay(inst, asAmbush, bi) {
     inst.fresh = true; inst.usesLeft = undefined;
     inst.enteredFaceUp = !asAmbush;
     inst.grantedFubing = !!(asAmbush && !inst.data.isAmbush && this.hasShefuBonus(pi, bi));
-    p.fields[bi].push(inst);
-    this.cardsPlayedCount++;
-    p.cardsPlayedByPlayer = (p.cardsPlayedByPlayer || 0) + 1;
+    p.fields[bi].push(inst);                              // ★ FIX: place card on field
+    this._trackCardPlayed(pi, inst.data.id);              // ★ v3.7: track play
+    this.cardsPlayedCount++;                              // ★ FIX
+    p.cardsPlayedByPlayer = (p.cardsPlayedByPlayer || 0) + 1;  // ★ FIX
     if (!asAmbush) this.players[pi].lastFaceUpEnemy[bi] = inst;
 
-    this.addLog(pi, `[R${this.round}·結算前] ${p.name} ${asAmbush ? '埋伏' : '加碼'} ${inst.data.name}（-${asAmbush ? 0 : inst.data.cost}糧｜餘${p.food}）`);
+    this.addLog(pi, `[R${this.round}·結算前] ${p.name} ${asAmbush ? '埋伏' : '加碼'} ${inst.data.name}（-${asAmbush ? 0 : inst.data.cost}糧｜餘${p.food}）`);  // ★ FIX: log line
     this.recordEvent('play', {
         player: pi, cardId: inst.data.id, cardUid: inst.uid, field: bi, faceDown: !!asAmbush,
         foodCost: asAmbush ? 0 : inst.data.cost, foodAfter: p.food, handAfter: p.hand.length,
@@ -4886,12 +5100,18 @@ decidePlayAI(pi) {
     const iAmBehindInMatch = myWins < oppWins;
     const myPendingFlipCost = myField.filter(c => c.faceDown).reduce((s, c) => s + c.data.cost, 0);
 
-    const oppFoodPotential = Math.min(opp.food, 8) * 1.5;
-    const oppHandPotential = Math.min(opp.hand.length, 5) * 3;
-    const oppFaceDownCount = oppField.filter(c => c.faceDown).length;
-    const oppFlipPotential = oppFaceDownCount * 2.5;   // v3.4：伏兵平均更強
-    const myFlipPotential = myField.filter(c => c.faceDown).reduce((s, c) => s + (c.data.power || 0), 0);
-    const oppMaxPotential = Math.min(oppFoodPotential, oppHandPotential) + oppFlipPotential;
+	// v3.6：更保守/現實的對手潛力估計。
+	// 一張牌平均戰力 ≈ 3，但需要花 1-2 糧。
+	// 對手最多能打出的牌數 = min(手牌數, 糧草能支撐的次數)
+	const oppCardsCapable = Math.max(0, Math.min(
+		opp.hand.length,
+		Math.floor(opp.food / 1.8)      // 假設平均 1.8 費/張
+	));
+	const oppFaceDownCount = oppField.filter(c => c.faceDown).length;
+	const oppFlipPotential = oppFaceDownCount * 3.0;
+	const myFlipPotential = myField.filter(c => c.faceDown).reduce((s, c) => s + (c.data.power || 0), 0);
+	// 平均每張牌 3.0 戰力（含上將時可能更高，這裡保守）
+	const oppMaxPotential = oppCardsCapable * 3.0 + oppFlipPotential;
     const myEffectivePow = myPow + myFlipPotential;
     const oppEffectivePow = oppPow + oppFlipPotential;
     const myLead = myEffectivePow - oppEffectivePow;
@@ -4929,7 +5149,7 @@ decidePlayAI(pi) {
     else if (oppPassed && myPow < oppPow) { shouldPlay = true; reason = 'behind_opp'; }
     else if (oppPassed) {
     // v3.4：對手已放棄。後手平手視為輸 → -1 修正
-    const oppFlipRisk = oppField.filter(c => c.faceDown).length * 4;   // 提高風險估算
+    const oppFlipRisk = oppField.filter(c => c.faceDown).length * 3.5;   // 提高風險估算
     const projectedOpp = oppPow + oppFlipRisk;
     let marginNow = myEffectivePow - projectedOpp;
     const iAmFirst = (this.roundFirstPlayer === pi);
@@ -5134,10 +5354,12 @@ scoreCardAI(c, pi, diff, ctx) {
         if (allies === 0) score -= 6;    // 場上沒友軍，放權沒人吃
         else score += 2;
     }	
-    if (d.id === 'yibing' || d.id === 'zhangjiao' || d.id === 'zhangbao' || d.id === 'zhangliang') {
-        const hasZhuge = myFieldNow.some(c => !c.faceDown && !c.silenced && c.data.id === 'zhugeliang');
-        if (hasZhuge) score += 7;
-    }
+	if (d.id === 'yibing' || d.id === 'zhangjiao' || d.id === 'zhangbao' || d.id === 'zhangliang') {
+		const hasZhugeOnField = myFieldNow.some(c => !c.faceDown && !c.silenced && c.data.id === 'zhugeliang');
+		const hasZhugeInHand  = p.hand.some(c => c.uid !== c.uid && c.data.id === 'zhugeliang');
+		if (hasZhugeOnField) score += 7;
+		else if (hasZhugeInHand) score += 6;    // ★ 新增：諸葛亮在手上，疑兵應先出
+	}
     /* 龐統 連環：場上敵軍越多，一次連環傷害越值 */
     if (d.id === 'pangtong') {
         const enemyCount = oppFieldNow.filter(c => !c.faceDown).length;
@@ -5165,14 +5387,26 @@ scoreCardAI(c, pi, diff, ctx) {
         const ybArchive = this.archive.filter(c => (c.data.skills||[]).includes('疑兵') && c.originalOwner === pi).length;
         score += (yb + ybArchive) * 3;
     }	
-    /* 諸葛亮 空城：靜態戰力不是 0，而是「場上疑兵數 × 3（基本） + mod」。
-       scoreCardAI 用 d.power 會嚴重低估，這裡依場上疑兵數動態加分。 */
-    if (d.id === 'zhugeliang') {
-        const yb = myFieldNow.filter(c => (c.data.skills||[]).includes('疑兵')).length;
-        if (yb > 0) score += yb * 6;
-        if (yb >= 2) score += 8;
-        if (yb >= 3) score += 8;
-    }
+	/* 諸葛亮 空城：需考慮場上 + 手牌的疑兵數。
+	   v3.6：修正原本只看場上、導致 AI 在沒疑兵時打諸葛亮的嚴重錯誤。 */
+	if (d.id === 'zhugeliang') {
+		const ybOnField = myFieldNow.filter(c => (c.data.skills||[]).includes('疑兵')).length;
+		const ybInHand  = p.hand.filter(c => c.uid !== c.uid && (c.data.skills||[]).includes('疑兵')).length;
+		const ybTotal   = ybOnField + ybInHand;
+
+		// 場上已有疑兵 → 立即效益
+		if (ybOnField > 0) score += ybOnField * 6;
+
+		// 場上沒疑兵，手上也 0 張 → 空城完全報廢，重罰
+		if (ybTotal === 0) score -= 25;    // ★ 新增：避免 AI 白板打諸葛亮
+
+		// 場上沒疑兵但有手牌疑兵 → 需要配合，適度加分
+		else if (ybOnField === 0 && ybInHand > 0) score += 3 + ybInHand * 2;
+
+		// 場上有疑兵時，額外獎勵
+		if (ybOnField >= 2) score += 6;
+		if (ybOnField >= 3) score += 6;
+	}
     if ((d.skills||[]).includes('斷路') || (d.skills||[]).includes('伏兵')) {
         score += myFieldNow.filter(c => c.faceDown).length * 2;
     }
@@ -5622,7 +5856,15 @@ if ((d.skills || []).includes('反骨')) {
         }
     }	
     if (d.isGeneral && !d.forceFaceDown) {
-        if (ctx.isFirstMoveOfRound) score -= 50;
+        if (ctx.isFirstMoveOfRound) {
+            // v3.5：動態懲罰。若對手手牌多（挑襲/奪銳目標多），或我落後需要翻盤，
+            // 開局懲罰降低
+            let openPenalty = -50;
+            if (p.hand.length >= 3 && opp.hand.length >= 4) openPenalty += 15;
+            if (ctx.mustWinThisRound) openPenalty += 15;
+            if (ctx.iAmBehindInMatch) openPenalty += 10;
+            score += openPenalty;
+        }
         else if (ctx.iAmResponding && !(myPow > oppPow) && !ctx.mustWinThisRound) score -= 15;
         else if (opp.passed) {
             if (myPow > oppPow + 5) score -= 8;
@@ -5705,7 +5947,15 @@ if (!opp.passed) {
         const wouldWin = projected > oppPow;
         if (opp.passed && myPow > oppPow + 5) score -= d.cost * 2;
         if (ctx.alreadyWonRound1 && myPow > oppPow + 5 && !ctx.mustWinThisRound) score -= d.cost * 3;
-        if (ctx.mustWinThisRound) { if (wouldWin && !(myPow>oppPow)) score += 6; else if (wouldWin) score += 2; }
+        if (ctx.mustWinThisRound) {
+		// v3.6：決勝輪，戰力就是一切。直接給戰力加成。
+		score += (d.power || 0) * 1.8;
+		// 節省型小牌（<3戰力）在決勝輪幾乎沒用
+		if ((d.power || 0) <= 2 && !d.isAmbush) score -= 3;
+
+		if (wouldWin && !(myPow>oppPow)) score += 6;
+		else if (wouldWin) score += 2;
+		}
         if (opp.food >= 10 && !wouldWin && d.cost >= 3) score -= 4;
         if (ctx.myPendingFlipCost > 0 && p.food - d.cost < ctx.myPendingFlipCost) score -= 25;
         if (Math.abs(myPow - oppPow) <= 2 && d.power >= 4) score += 2;
@@ -6205,6 +6455,16 @@ async settle() {
         blueWins: this.players[0].wins, redWins: this.players[1].wins,
         blueFood: this.players[0].food, redFood: this.players[1].food });
 
+    // 🎯 v3.7: 記錄卡片勝率（勝方場上的每張牌 +1 win）
+    if (this.teams) {
+        const teamId = this.seatTeam[winner];
+        if (teamId !== null && this.teams[teamId]) {
+            this.teams[teamId].forEach(seat => this._trackRoundWin(seat, bi));
+        }
+    } else {
+        this._trackRoundWin(winner, bi);
+    }
+
     let someoneWon = false;
     let winningPlayers = [];
     if (this.teams) {
@@ -6307,7 +6567,9 @@ nextRound() {
 }
 
 render() {
+    if (this._destroyed) return;                    // v3.6
     const app = document.getElementById('app');
+    if (!app) return;                               // v3.6
     if (this.state === 'flip') { app.innerHTML = this.renderFlip(); return; }
     if (this.state === 'mulligan') { app.innerHTML = this.renderMulligan(); return; }
     if (this.state === 'gameover') { app.innerHTML = this.renderGameOver(); return; }
@@ -6326,6 +6588,7 @@ _nextActorAfterCurrent() {
     return null;
 }
 scheduleAI() {
+    if (this._destroyed) return;                    // v3.6
     if (this.netMode) return;
     if (this.state !== 'battle') return;
     if (this.countdown !== null) return;
@@ -6405,19 +6668,21 @@ cardHTML(inst, o = {}) {
 }
 
 renderFlip() {
-    const c0 = this.flipCards[0], c1 = this.flipCards[1];
-    const r0 = this.flipRevealed[0], r1 = this.flipRevealed[1];
-    const both = r0 && r1;
-    const isAuto = this.cfg.mode === 'aiai';
+    const isAuto = this.players.every(p => p.botType);
     let html = this.renderBackBtn();
     html += this.renderSpeedPanel();
     html += `<div class="header"><h1>三 國 風 雲</h1>
         <div class="info">翻牌決定先後手 ${this.modeTag()}</div></div>
-        <div style="text-align:center; padding:14px;">
-        <div class="flip-stage">
+        <div style="text-align:center; padding:14px;">`;
+
+    if (this.numPlayers === 2) {
+        // --- Original 2-player layout (unchanged) ---
+        const c0 = this.flipCards[0], c1 = this.flipCards[1];
+        const r0 = this.flipRevealed[0], r1 = this.flipRevealed[1];
+        html += `<div class="flip-stage">
             <div class="flip-slot">
                 <div class="lbl" style="color:#6fb6ff;">藍方${this.aiIcon(0)}${this.diffTag(0)}</div>
-                                <div class="flip-card-wrap ${(!r0 && (!this.netMode || this.localPlayerIdx === 0)) ? 'flip-click' : ''}" onclick="${(!r0 && (!this.netMode || this.localPlayerIdx === 0)) ? 'game.revealFlip(0)' : ''}">
+                <div class="flip-card-wrap ${(!r0 && (!this.netMode || this.localPlayerIdx === 0)) ? 'flip-click' : ''}" onclick="${(!r0 && (!this.netMode || this.localPlayerIdx === 0)) ? 'game.revealFlip(0)' : ''}">
                     ${r0 ? this.cardHTML(c0, { forceReveal: true, noHighlight: true })
                           : `<div class="card"><div class="card-back"><div class="card-back-pattern">三國</div></div></div>`}
                 </div>
@@ -6426,28 +6691,58 @@ renderFlip() {
             <div style="font-size:32px;color:#ffd700;font-weight:bold;">VS</div>
             <div class="flip-slot">
                 <div class="lbl" style="color:#ff7b7b;">紅方${this.aiIcon(1)}${this.diffTag(1)}</div>
-                               <div class="flip-card-wrap ${(!r1 && (!this.netMode || this.localPlayerIdx === 1)) ? 'flip-click' : ''}" onclick="${(!r1 && (!this.netMode || this.localPlayerIdx === 1)) ? 'game.revealFlip(1)' : ''}">
+                <div class="flip-card-wrap ${(!r1 && (!this.netMode || this.localPlayerIdx === 1)) ? 'flip-click' : ''}" onclick="${(!r1 && (!this.netMode || this.localPlayerIdx === 1)) ? 'game.revealFlip(1)' : ''}">
                     ${r1 ? this.cardHTML(c1, { forceReveal: true, noHighlight: true })
                           : `<div class="card"><div class="card-back"><div class="card-back-pattern">三國</div></div></div>`}
                 </div>
                 <div class="flip-power ${r1 ? '' : 'hidden'}" style="color:#ff7b7b;">戰力 ${c1.data.power}</div>
             </div>
         </div>`;
-    if (!both) html += `<p style="color:#a89070;font-size:15px;">請雙方各自點擊自己的牌以翻開${isAuto?'（AI 將自動翻牌）':''}</p>`;
-    else if (this.firstPlayer === null) {
-        html += `<p style="font-size:18px;color:#ff9c4a;margin-bottom:16px;font-weight:bold;">
-            ⚖️ 平手！${c0.data.name}(${c0.data.power}) vs ${c1.data.name}(${c1.data.power}) — 重新翻牌…
-        </p>
-        <p style="color:#a89070;font-size:13px;">兩張牌已進入棄牌堆</p>`;
+        const both = r0 && r1;
+        if (!both) html += `<p style="color:#a89070;font-size:15px;">請雙方各自點擊自己的牌以翻開${isAuto?'（AI 將自動翻牌）':''}</p>`;
+        else if (this.firstPlayer === null) {
+            html += `<p style="font-size:18px;color:#ff9c4a;margin-bottom:16px;font-weight:bold;">⚖️ 平手！重新翻牌…</p>
+                     <p style="color:#a89070;font-size:13px;">兩張牌已進入棄牌堆</p>`;
+        } else {
+            const fp = this.firstPlayer;
+            const fc = fp === 0 ? '#6fb6ff' : '#ff7b7b';
+            const fcg = fp === 0 ? 'linear-gradient(180deg,#3a7ac8,#1a4a8a)' : 'linear-gradient(180deg,#c83a3a,#8a1a1a)';
+            const fbd = fp === 0 ? '#5aa0e8' : '#e85a5a';
+            html += `<p style="font-size:16px;color:#e0c080;margin-bottom:16px;">${c0.data.name}（${c0.data.power}） vs ${c1.data.name}（${c1.data.power}）</p>
+                <button class="btn btn-big" style="background:${fcg};border:1px solid ${fbd};color:#fff;" onclick="game.beginBattle()"><span style="color:${fc}">${this.players[fp].name}</span>先手！開始對戰</button>`;
+        }
+    } else {
+        // --- N-player layout (3 or 4 seats, horizontal row) ---
+        const allRevealed = this.flipRevealed.every(x => x);
+        html += `<div style="display:flex;justify-content:center;gap:22px;flex-wrap:wrap;margin:24px 0;">`;
+        for (let i = 0; i < this.numPlayers; i++) {
+            const col = PLAYER_COLORS[i % PLAYER_COLORS.length];
+            const c = this.flipCards[i];
+            const r = this.flipRevealed[i];
+            const canClick = !r && (!this.netMode || this.localPlayerIdx === i);
+            html += `<div class="flip-slot">
+                <div class="lbl" style="color:${col.text};">${this.players[i].name}${this.aiIcon(i)}${this.diffTag(i)}</div>
+                <div class="flip-card-wrap ${canClick ? 'flip-click' : ''}" onclick="${canClick ? `game.revealFlip(${i})` : ''}">
+                    ${r ? this.cardHTML(c, { forceReveal: true, noHighlight: true })
+                        : `<div class="card"><div class="card-back"><div class="card-back-pattern">三國</div></div></div>`}
+                </div>
+                <div class="flip-power ${r ? '' : 'hidden'}" style="color:${col.text};">戰力 ${c.data.power}</div>
+            </div>`;
+        }
+        html += `</div>`;
+        if (!allRevealed) {
+            html += `<p style="color:#a89070;font-size:15px;">請各方各自點擊自己的牌以翻開${isAuto?'（AI 將自動翻牌）':''}</p>`;
+        } else if (this.firstPlayer === null) {
+            html += `<p style="font-size:18px;color:#ff9c4a;margin-bottom:16px;font-weight:bold;">⚖️ 平手！重新翻牌…</p>
+                     <p style="color:#a89070;font-size:13px;">所有牌已進入棄牌堆</p>`;
+        } else {
+            const col = PLAYER_COLORS[this.firstPlayer % PLAYER_COLORS.length];
+            const fcg = 'linear-gradient(180deg,#8a6020,#5a3d10)';
+            html += `<p style="font-size:16px;color:#e0c080;margin-bottom:16px;">${this.flipCards.map((c, idx) => `${this.players[idx].name}（${c.data.power}）`).join(' · ')}</p>
+                <button class="btn btn-big" style="background:${fcg};border:1px solid ${col.border};color:#fff;" onclick="game.beginBattle()"><span style="color:${col.text}">${this.players[this.firstPlayer].name}</span>先手！開始對戰</button>`;
+        }
     }
-    else {
-        const fp = this.firstPlayer;
-        const fc = fp === 0 ? '#6fb6ff' : '#ff7b7b';
-        const fcg = fp === 0 ? 'linear-gradient(180deg,#3a7ac8,#1a4a8a)' : 'linear-gradient(180deg,#c83a3a,#8a1a1a)';
-        const fbd = fp === 0 ? '#5aa0e8' : '#e85a5a';
-        html += `<p style="font-size:16px;color:#e0c080;margin-bottom:16px;">${c0.data.name}（${c0.data.power}） vs ${c1.data.name}（${c1.data.power}）</p>
-            <button class="btn btn-big" style="background:${fcg};border:1px solid ${fbd};color:#fff;" onclick="game.beginBattle()"><span style="color:${fc}">${this.players[fp].name}</span>先手！開始對戰</button>`;
-    }
+
     html += `</div>`;
     html += `<div id="modal-slot"></div>`;
     return html;
@@ -6630,11 +6925,12 @@ renderBattle() {
 renderHeader() {
     const chips = this.players.map((p, i) => {
         const col = PLAYER_COLORS[i % PLAYER_COLORS.length];
-        return `<span style="color:${col.text};">${p.name} ${p.wins}勝${this.aiIcon(i)}</span>`;
+        const winDots = '●'.repeat(p.wins) + '○'.repeat(Math.max(0, 2 - p.wins));
+return `<span style="color:${col.text};">${p.name} ${winDots}${this.aiIcon(i)}</span>`;
     }).join(' ｜ ');
     return `<div class="header"><h1>三 國 風 雲</h1>
         <div class="info">
-            第 ${this.round} 輪 ｜ 戰場：【${this.battlefields[this.currentBfIndex]}】
+            第 ${this.round}/${this.fieldCount} 輪 ｜ 戰場：【${this.battlefields[this.currentBfIndex]}】
             ｜ 牌庫 ${this.deck.length} 張
             ｜ ${chips}
             ${this.modeTag()}
@@ -6739,7 +7035,7 @@ renderBattlefields() {
                 <div class="bf-player-lbl" style="color:${col.text};">${p.name}</div>
                 <div class="bf-cards">
                     ${field.length === 0
-                        ? `<span class="bf-ghost">—</span>`
+                        ? `<span class="bf-ghost">等待部屬…</span>`
                         : field.map(c => this.cardHTML(c, {
                             size: cardSize,
                             extra: c.fresh ? ('enter ' + cardExtra) : cardExtra,
@@ -6925,7 +7221,7 @@ renderHands() {
         const pendingTxt = pendingFood > 0 ? `　<span class="hand-pending">（背面牌將消耗 ${pendingFood} 糧）</span>` : '';
         return `<div class="hand-wrap"><div class="hand-title" style="color:${pep === 0 ? '#6fb6ff' : '#ff7b7b'}">${pp.name}${this.aiIcon(pep)} 的手牌（${pp.hand.length}）　糧草：${pp.food}/${cap}${pendingTxt}</div>
             <div class="hand-row">${(this.cover || hidePep) ? `<span style="color:#666;font-size:13px;padding:20px;">${hidePep?'🤖 AI 的手牌已隱藏':'手牌已隱藏'}</span>` :
-                (pp.hand.map(c => this.cardHTML(c, { extra:'dim clickable', noHighlight: true, attr:`onclick="game.inspect('${c.uid}')"` })).join('') || '<span style="color:#666;">無手牌</span>')}</div></div>`;
+                (pp.hand.map(c => this.cardHTML(c, { extra:'dim clickable', noHighlight: true, attr:`onclick="game.inspect('${c.uid}')"` })).join('') || '<span style="color:#a89070;font-size:13px;font-style:italic;padding:20px;">（手牌已出盡）</span>')}</div></div>`;
     }
     if (this.phase === 'settle')
         return `<div class="hand-wrap"><div class="hand-title">手牌</div><div class="hand-row"><span style="color:#666;font-size:13px;padding:20px;">結算中…</span></div></div>`;
@@ -7381,16 +7677,16 @@ function showSetup() {
                 <button class="btn" onclick="importLogFromFile()">📂 匯入 JSON 記錄</button>
                 <input type="file" id="import-log-file" accept=".json,application/json" style="display:none" onchange="handleImportLog(event)">
             </div>
-            <div style="text-align:center;margin-bottom:10px;">
-                <button class="btn" style="font-size:12px;padding:5px 12px;" onclick="exportAllLocalLogs()">📦 匯出所有本地記錄</button>
-                <button class="btn" style="padding:5px 12px;font-size:12px;" onclick="clearLocalLogs()">🗑️ 清空本地快取</button>
-                <span id="local-log-count" style="font-size:12px;color:#a89070;margin-left:8px;"></span>
-            </div>
-            <div style="text-align:center;">
-                <label class="chk" style="display:inline-flex;"><input type="checkbox" id="cfg-autoExport" checked> AI vs AI 結束自動下載 JSON</label>
-                <label class="chk" style="display:inline-flex;margin-left:16px;"><input type="checkbox" id="cfg-autoRestart" checked> AI vs AI 結束自動重新開局</label>
-            </div>
-        </div>
+		<div style="text-align:center;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
+			<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="exportAllLocalLogs()">📦 匯出所有本地記錄</button>
+			<button class="btn" style="padding:5px 12px;font-size:12px;" onclick="clearBattleLogs()">🗑️ 清空對戰記錄</button>
+			<button class="btn btn-red" style="padding:5px 12px;font-size:12px;" onclick="clearClientPrefs()">🧹 重置個人設定</button>
+			<span id="local-log-count" style="font-size:12px;color:#a89070;"></span>
+		</div>
+		<div style="text-align:center;margin-top:8px;">
+			<label class="chk" style="display:inline-flex;"><input type="checkbox" id="cfg-autoExport" checked> AI vs AI 結束自動下載 JSON</label>
+			<label class="chk" style="display:inline-flex;margin-left:16px;"><input type="checkbox" id="cfg-autoRestart" checked> AI vs AI 結束自動重新開局</label>
+		</div>
 
         <div style="margin-top:22px;font-size:12.5px;color:#9a8a6a;line-height:1.9;">
             <div style="color:#ffd700;font-weight:bold;margin-bottom:4px;">技能結算順序</div>
@@ -7428,9 +7724,9 @@ function showSetup() {
     </div>
     <div id="modal-slot"></div>`;
 
-    const cnt = (() => { try { return (JSON.parse(safeStore.get('sanguo_logs') || '[]') || []).length; } catch(e) { return 0; } })();
-    const el = document.getElementById('local-log-count');
-    if (el) el.textContent = `（目前快取 ${cnt} 份）`;
+	const cnt = (() => { try { return (JSON.parse(safeStore.get('sanguo_logs') || '[]') || []).length; } catch(e) { return 0; } })();
+	const el = document.getElementById('local-log-count');
+	if (el) el.textContent = `（對戰記錄：${cnt} 份）`;
     try {
         const saved = safeStore.get('sanguo_myname');
         if (saved) {
@@ -7438,7 +7734,7 @@ function showSetup() {
             const inp = document.getElementById('cfg-myName');
             if (inp) inp.value = saved;
             const st = document.getElementById('cfg-myName-status');
-            if (st) st.innerHTML = `<span style="color:#7cff7c;">✅ 已設定名稱為「${saved}」</span>`;
+            if (st) st.innerHTML = `<span class="status-ok">✅ 已設定名稱為「${saved}」</span>`;
         }
     } catch (e) {}
     // Initialize mode picker + seat config
@@ -7461,9 +7757,31 @@ function exportAllLocalLogs() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function clearLocalLogs() {
-    if (!confirm('確定清空所有本地快取記錄？')) return;
+function clearBattleLogs() {
+    if (!confirm('確定清空所有對戰記錄？\n\n這只會刪除本地儲存的回放紀錄。\n（主題、UI 縮放、玩家名稱等個人設定不受影響）')) return;
     localStorage.removeItem('sanguo_logs');
+    showSetup();
+}
+
+function clearClientPrefs() {
+    if (!confirm('確定重置所有個人設定？\n\n將清除：\n• 主題\n• UI 縮放\n• 玩家名稱\n• AI 速度\n• 無障礙選項（減少動態 / 粒子）\n• 聊天展開狀態\n• 線上對戰重連資訊\n\n（對戰記錄會保留，如需清除請用「清空對戰記錄」）')) return;
+    const keys = [
+        'sanguo_theme',
+        'sanguo_uiscale',
+        'sanguo_myname',
+        'sanguo_aiSpeed',
+        'sanguo_reducedMotion',
+        'sanguo_particles',
+        'sanguo_chatExpanded'
+    ];
+    keys.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+    try { sessionStorage.removeItem('sanguo_rejoin'); } catch(e) {}
+    // Reset DOM/applied state
+    document.body.removeAttribute('data-theme');
+    document.body.removeAttribute('data-reduced-motion');
+    document.body.removeAttribute('data-particles');
+    try { document.documentElement.style.zoom = ''; } catch(e) {}
+    window.__myName = null;
     showSetup();
 }
 
@@ -7616,18 +7934,36 @@ function downloadLogByIndex(idx) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/* v3.7: 卡片庫 — set 篩選 + 勝率排序 */
+window.__viewerVanilla  = (typeof window.__viewerVanilla  === 'undefined') ? true : window.__viewerVanilla;
+window.__viewerExtended = (typeof window.__viewerExtended === 'undefined') ? true : window.__viewerExtended;
+
 function openViewer() {
     const slot = document.getElementById('modal-slot');
-    const sets = readCardSetConfig();
+    if (!slot) return;
 
+    // ---- 建立牌池（僅依卡片庫自己的 set 開關，不看設定頁） ----
     const pool = [];
     CARD_DB.forEach(d => {
-        const setCfg = sets[d.set];
-        if (!setCfg || !setCfg[d.faction]) return;
+        if (d.set === 'vanilla'  && !window.__viewerVanilla)  return;
+        if (d.set === 'extended' && !window.__viewerExtended) return;
         const n = d.count || 1;
         for (let i = 0; i < n; i++) pool.push({ def: d, idx: i, total: n });
     });
 
+    // ---- 讀取統計 ----
+    const stats = loadCardStats();
+    const getRate = (id, bucket) => {
+        const s = stats[bucket] && stats[bucket][id];
+        if (!s || !s.plays) return null;
+        return s.wins / s.plays;
+    };
+    const getPlays = (id, bucket) => {
+        const s = stats[bucket] && stats[bucket][id];
+        return s ? s.plays : 0;
+    };
+
+    // ---- 排序 ----
     if (viewerMode === 'id') {
         pool.sort((a, b) => {
             const ai = a.def.cardId || '';
@@ -7635,7 +7971,7 @@ function openViewer() {
             if (ai !== bi) return ai.localeCompare(bi);
             return a.idx - b.idx;
         });
-    } else {
+    } else if (viewerMode === 'sort') {
         pool.sort((a, b) => {
             const ac = a.def.cost - b.def.cost;
             if (ac !== 0) return ac;
@@ -7643,11 +7979,26 @@ function openViewer() {
             if (ap !== 0) return ap;
             return a.idx - b.idx;
         });
+    } else if (viewerMode === 'aiRate' || viewerMode === 'playerRate') {
+        const bucket = (viewerMode === 'aiRate') ? 'ai' : 'player';
+        pool.sort((a, b) => {
+            const ra = getRate(a.def.id, bucket);
+            const rb = getRate(b.def.id, bucket);
+            if (ra === null && rb === null) return (a.def.cardId||'').localeCompare(b.def.cardId||'');
+            if (ra === null) return 1;
+            if (rb === null) return -1;
+            if (rb !== ra) return rb - ra;
+            return getPlays(b.def.id, bucket) - getPlays(a.def.id, bucket);
+        });
     }
 
+    // ---- 分陣營 ----
     const byFac = { shu: [], wei: [], wu: [], qun: [] };
-    pool.forEach(item => byFac[item.def.faction]?.push(item));
+    pool.forEach(item => { if (byFac[item.def.faction]) byFac[item.def.faction].push(item); });
 
+    // ---- 內容 ----
+    const showStats = (viewerMode === 'aiRate' || viewerMode === 'playerRate');
+    const statBucket = (viewerMode === 'aiRate') ? 'ai' : 'player';
     let content = '';
     FACTION_ORDER.forEach(f => {
         if (!byFac[f] || !byFac[f].length) return;
@@ -7655,22 +8006,69 @@ function openViewer() {
         content += byFac[f].map(item => {
             const d = item.def;
             const badge = item.total > 1 ? `<div class="viewer-badge">${item.idx + 1}/${item.total}</div>` : '';
-            return `<div class="viewer-card-wrap" onclick="inspectDefFromViewer('${d.id}')">${cardHTMLStatic(d)}${badge}</div>`;
+            let statBadge = '';
+            if (showStats) {
+                const s = stats[statBucket][d.id];
+                if (s && s.plays > 0) {
+                    const pct = Math.round((s.wins / s.plays) * 100);
+                    const col = pct >= 60 ? '#7cff7c' : (pct >= 40 ? '#ffd700' : '#ff7b7b');
+                    statBadge = `<div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.85);color:${col};font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid ${col};font-weight:bold;z-index:2;">${pct}% (${s.plays})</div>`;
+                } else {
+                    statBadge = `<div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.5);color:#777;font-size:11px;padding:2px 6px;border-radius:4px;z-index:2;">—</div>`;
+                }
+            }
+            return `<div class="viewer-card-wrap" style="position:relative;" onclick="inspectDefFromViewer('${d.id}')">${cardHTMLStatic(d)}${badge}${statBadge}</div>`;
         }).join('');
         content += `</div></div>`;
     });
 
+    const btnVanilla  = `<button class="${window.__viewerVanilla  ? 'on' : ''}" onclick="toggleViewerSet('vanilla')">標準</button>`;
+    const btnExtended = `<button class="${window.__viewerExtended ? 'on' : ''}" onclick="toggleViewerSet('extended')">擴展</button>`;
+
+    const sortBtns = `
+        <button class="${viewerMode === 'id' ? 'on' : ''}" onclick="setViewerMode('id')">依編號</button>
+        <button class="${viewerMode === 'sort' ? 'on' : ''}" onclick="setViewerMode('sort')">依糧草+戰力</button>
+        <button class="${viewerMode === 'aiRate' ? 'on' : ''}" onclick="setViewerMode('aiRate')">🤖 AI 勝率</button>
+        <button class="${viewerMode === 'playerRate' ? 'on' : ''}" onclick="setViewerMode('playerRate')">🧑 玩家勝率</button>
+    `;
+
+    const statsHint = showStats
+        ? `<p style="font-size:12px;color:#a89070;text-align:center;margin:6px 0 10px;">
+             ${statBucket === 'ai'
+                ? '🤖 僅統計「困難 AI vs 困難 AI」對局 · 格式：勝率% (出場次數)'
+                : '🧑 僅統計人類玩家對局 · 格式：勝率% (出場次數)'}
+           </p>`
+        : '';
+
     slot.innerHTML = `<div class="overlay" onclick="closeModal(event)"><div class="modal viewer-modal" onclick="event.stopPropagation()">
-        <h2>所有卡牌（合計 ${pool.length} 張）</h2>
-        <div class="viewer-toolbar">
-            <button class="${viewerMode === 'id' ? 'on' : ''}" onclick="setViewerMode('id')">依編號順序</button>
-            <button class="${viewerMode === 'sort' ? 'on' : ''}" onclick="setViewerMode('sort')">依糧草 + 戰力</button>
-        </div>
+        <h2>卡牌庫（合計 ${pool.length} 張）</h2>
+        <div class="viewer-toolbar">${btnVanilla}${btnExtended}</div>
+        <div class="viewer-toolbar">${sortBtns}</div>
+        ${statsHint}
         <div>${content}</div>
-        <div style="text-align:center;margin-top:16px;"><button class="btn btn-red" onclick="closeModal()">關閉</button></div>
+        <div style="text-align:center;margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn" style="font-size:12px;padding:6px 12px;" onclick="confirmClearCardStats()">🗑️ 清除卡片統計</button>
+            <button class="btn btn-red" onclick="closeModal()">關閉</button>
+        </div>
     </div></div>`;
 }
 function setViewerMode(m) { viewerMode = m; openViewer(); }
+function toggleViewerSet(setName) {
+    if (setName === 'vanilla') {
+        if (window.__viewerVanilla && !window.__viewerExtended) return; // at least one stays on
+        window.__viewerVanilla = !window.__viewerVanilla;
+    } else if (setName === 'extended') {
+        if (window.__viewerExtended && !window.__viewerVanilla) return;
+        window.__viewerExtended = !window.__viewerExtended;
+    }
+    openViewer();
+}
+function confirmClearCardStats() {
+    if (!confirm('確定清除所有卡片統計？\n\n將刪除：\n• 困難 AI vs 困難 AI 的卡片勝率資料\n• 玩家對局的卡片勝率資料\n\n此操作無法復原。')) return;
+    clearCardStats();
+    alert('✅ 已清除卡片統計');
+    openViewer();
+}
 
 function cardHTMLStatic(d) {
     const fac = FACTION_INFO[d.faction];
@@ -7838,10 +8236,10 @@ function startGame(mode) {
         baseRefill  : num('cfg-baseRefill', 6),
         initialCards: num('cfg-initialCards', 4),
         maxFood     : num('cfg-maxFood', 12),
-        aiTrashTalk : document.getElementById('cfg-aiTrashTalk').checked,
-        chatEnabled : document.getElementById('cfg-chatEnabled').checked,
-        autoExport  : document.getElementById('cfg-autoExport').checked,
-        autoRestart : document.getElementById('cfg-autoRestart').checked,
+        aiTrashTalk : (document.getElementById('cfg-aiTrashTalk') || {}).checked !== false,
+        chatEnabled : (document.getElementById('cfg-chatEnabled') || {}).checked !== false,
+        autoExport  : !!(document.getElementById('cfg-autoExport') || {}).checked,
+        autoRestart : !!(document.getElementById('cfg-autoRestart') || {}).checked,
         autoRestartDelay: 2000
     };
     if (!validateCardSets(cfg.cardSets)) return;
@@ -7942,7 +8340,7 @@ function confirmMyName() {
     window.__myName = name;
     try { localStorage.setItem('sanguo_myname', name); } catch (e) {}
     const status = document.getElementById('cfg-myName-status');
-    if (status) status.innerHTML = `<span style="color:#7cff7c;">✅ 已設定名稱為「${name}」</span>`;
+    if (status) status.innerHTML = `<span class="status-ok">✅ 已設定名稱為「${name}」</span>`;
 }
 
 function copyRoomCode(code) {
@@ -8303,6 +8701,134 @@ Game.prototype.render = function () {
     setTimeout(() => { try { updateChatCooldownUI(); } catch (e) {} }, 0);
     return r;
 };
+/* ================================================================ */
+/* ============ v3.6: 鍵盤快捷鍵 ================================= */
+/* ================================================================ */
+(function() {
+    function isTyping() {
+        const el = document.activeElement;
+        if (!el) return false;
+        const tag = el.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    }
+    function hasBlockingModal() {
+        // 卡片檢視 / 觀星 / 權衡 等 modal 開著時禁用快捷鍵
+        // 遊戲選單（game-menu-overlay）不算，因為它不阻擋動作
+        const overlays = document.querySelectorAll('.overlay');
+        for (const o of overlays) {
+            if (o.classList.contains('game-menu-overlay')) continue;
+            return true;
+        }
+        return false;
+    }
+    document.addEventListener('keydown', e => {
+        if (isTyping()) return;
+        const g = window.game;
+        if (!g || g._destroyed) return;
+        if (g.state !== 'battle') return;
+
+        // 有 modal 開著：僅允許 Escape 關閉
+        if (hasBlockingModal()) {
+            if (e.key === 'Escape') {
+                const el = document.querySelector('.overlay:not(.game-menu-overlay)');
+                if (el) el.remove();
+                if (g.inspectCard) g.closeInspect();
+            }
+            return;
+        }
+
+        // ---- preend 階段：只支援 Q（放棄出牌） ----
+        if (g.phase === 'preend') {
+            const pep = g.preEndOrder && g.preEndOrder[g.preEndIdx];
+            if (pep === undefined || pep === null) return;
+            if (g.isAI(pep)) return;
+            if (g.netMode && pep !== g.localPlayerIdx) return;
+            if (g.cover || g.countdown !== null) return;
+            if (e.key === 'q' || e.key === 'Q') {
+                e.preventDefault();
+                g.preEndAct();
+            }
+            return;
+        }
+
+        // ---- turn 階段 ----
+        if (g.phase !== 'turn') return;
+        const pi = g.current;
+        if (g.isAI(pi)) return;
+        if (g.netMode && pi !== g.localPlayerIdx) return;
+        if (g.cover || g.countdown !== null) return;
+        const p = g.players[pi];
+        if (!p || p.passed) return;
+
+        const playable = p.hand.filter(c => g.canPlayNormally(c, pi) || g.canPlayAmbush(c, pi));
+
+        function navigateCard(dir) {
+            if (playable.length === 0) return;
+            const curIdx = playable.findIndex(c => c.uid === g.selected);
+            let newIdx;
+            if (curIdx === -1) newIdx = dir > 0 ? 0 : playable.length - 1;
+            else newIdx = curIdx + dir;
+            newIdx = ((newIdx % playable.length) + playable.length) % playable.length;
+            g.selectCard(playable[newIdx].uid);
+        }
+        function navigateField(dir) {
+            if (!g.selected) return;
+            const inst = p.hand.find(c => c.uid === g.selected);
+            if (!inst) return;
+            const allowed = g.getPlayableFields(inst, pi);
+            if (allowed.length <= 1) return;
+            const cur = (g.selectedField !== null) ? g.selectedField : g.currentBfIndex;
+            const curIdx = allowed.indexOf(cur);
+            let newIdx = (curIdx === -1 ? 0 : curIdx + dir);
+            newIdx = ((newIdx % allowed.length) + allowed.length) % allowed.length;
+            const target = allowed[newIdx];
+            g.selectedField = (target === g.currentBfIndex) ? null : target;
+            g.render();
+        }
+
+        const k = e.key;
+        const code = e.code;
+
+        if (code === 'Space' || k === ' ') {
+            e.preventDefault();
+            if (g.selected) g.doPlay(false);
+            return;
+        }
+        if (k === 'e' || k === 'E') {
+            if (g.selected) {
+                const inst = p.hand.find(c => c.uid === g.selected);
+                if (inst && g.canPlayAmbush(inst, pi)) g.doPlay(true);
+            }
+            return;
+        }
+        if (k === 'q' || k === 'Q') {
+            e.preventDefault();
+            g.doPass();
+            return;
+        }
+        if (k === 'w' || k === 'W' || code === 'ArrowUp') {
+            e.preventDefault();
+            navigateCard(-1);
+            return;
+        }
+        if (k === 's' || k === 'S' || code === 'ArrowDown') {
+            e.preventDefault();
+            navigateCard(1);
+            return;
+        }
+        if (k === 'a' || k === 'A' || code === 'ArrowLeft') {
+            e.preventDefault();
+            navigateField(-1);
+            return;
+        }
+        if (k === 'd' || k === 'D' || code === 'ArrowRight') {
+            e.preventDefault();
+            navigateField(1);
+            return;
+        }
+    });
+})();
+
 /* ============ 載入已儲存的視覺設定 ============ */
 (function() {
     const t = getCurrentTheme();
