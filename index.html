@@ -2751,12 +2751,14 @@ const CARD_DB = [
   desc:'魏王：同陣地魏國友軍戰力+1。\n放逐：進場時，可棄置最多兩張牌並摸同等數量的牌。',
   onEnter(ctx){
       const p=ctx.game.players[ctx.owner];
-      if(p.hand.length<2)return;
+      // ★ v3.13: 允許 0~2 張（手牌不足時就棄現有的）
+      if(p.hand.length===0)return;
+      const n = Math.min(2, p.hand.length);
       const sorted=[...p.hand].sort((a,b)=>(a.data.power/Math.max(1,a.data.cost))-(b.data.power/Math.max(1,b.data.cost)));
-      const disc=sorted.slice(0,2);
+      const disc=sorted.slice(0,n);
       disc.forEach(c=>{const i=p.hand.findIndex(x=>x.uid===c.uid);if(i>=0){ctx.game.archive.push(p.hand[i]);p.hand.splice(i,1);}});
-      ctx.game.drawTo(ctx.owner,2);
-      ctx.log(`${ctx.self.data.name}【放逐】：棄 2 抽 2`);
+      ctx.game.drawTo(ctx.owner,n);
+      ctx.log(`${ctx.self.data.name}【放逐】：棄 ${n} 抽 ${n}`);
   }
 },
 
@@ -3206,9 +3208,11 @@ const CARD_DB = [
           if(nonLocked.length && !target.silenced) target.silenced = true;
           ctx.log(`${ctx.self.data.name}【冷箭】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
       }
-      ctx.game.players[0].food=Math.max(0,ctx.game.players[0].food-1);
-      ctx.game.players[1].food=Math.max(0,ctx.game.players[1].food-1);
-      ctx.log(`${ctx.self.data.name}【焚城】：雙方各 -1 糧`);
+      // ★ v3.13: 修正多人局，只扣「自己」與「對陣」
+      const owner = ctx.owner, foe = ctx.opponent;
+      ctx.game.players[owner].food = Math.max(0, ctx.game.players[owner].food - 1);
+      ctx.game.players[foe].food = Math.max(0, ctx.game.players[foe].food - 1);
+      ctx.log(`${ctx.self.data.name}【焚城】：${ctx.game.players[owner].name} 與 ${ctx.game.players[foe].name} 各 -1 糧`);
   }
 },
 ];
@@ -3924,6 +3928,7 @@ constructor(cfg) {
     this._handoffDoneThisTurn = false;
     this.cardsPlayedCount = 0;
     this._simaYiLastChanceUsed = false;
+    this._yinrenUsedThisRound = false;   // ★ v3.12
     this._pendingFlips = {};          // ★ v3.9: { bi: { projected, totals } }
     this._paymentOrders = {};         // ★ v3.5: 結算支付順序
     this._gamePlays = {};             // ★ v4.0: 整場遊戲每個玩家出過的卡（Set<cardId>）
@@ -3935,6 +3940,10 @@ constructor(cfg) {
     // v3.6: destroy flag & timer tracking (fix "quit doesn't stop AI")
     this._destroyed = false;
     this._allTimers = new Set();
+	    // ★ v3.11: 停滯偵測
+    this._lastActivityTime = Date.now();
+    this._watchdogTimer = null;
+    this._startWatchdog();
     this._rematchVotes = [false, false];   // Phase 3: [host, guest]
     this.sendToBottom = !!(cfg.sendToBottom); // true = flip cards & redraw discards go to bottom of draw pile
     this.aiTrashTalk  = cfg.aiTrashTalk  !== false;   // 預設開啟
@@ -4169,9 +4178,9 @@ getPower(inst, pi, bi, atSettle, skipLijie) {
     const myField = this.players[pi].fields[bi];
     const enemyField = this.players[this.opponentOf(pi)].fields[bi];
 
-    if (!inst.silenced) {
+    if (true) {   // ★ v3.13: 移除 silenced 外層判斷，改為逐一檢查
         const sk = d.skills || [];
-        if (sk.includes('力竭')) {
+        if (sk.includes('力竭')) {  // 力竭是鎖定技，永遠生效
             // ★ v3.4.1: 力竭受【堅守】保護
             // 若本陣有曹仁【堅守】且己方劣勢，力竭的戰力減少被攔截。
             // skipLijie = true 時（判斷堅守自身時），不做遞迴檢查。
@@ -4333,10 +4342,42 @@ clearAllTimers() {
         this._allTimers.forEach(id => { try { clearTimeout(id); } catch(e){} });
         this._allTimers.clear();
     }
-    ['backBtnTimer','countdownTimer','aiTimer','flipAutoTimer','settleAutoTimer'].forEach(k=>{
-        if (this[k]) { clearTimeout(this[k]); this[k]=null; }
+    ['backBtnTimer','countdownTimer','aiTimer','flipAutoTimer','settleAutoTimer',
+     '_autoRestartTick','_autoRestartFire'].forEach(k=>{
+        if (this[k]) { try { clearTimeout(this[k]); } catch(e){} this[k]=null; }
     });
+    // ★ v3.11: 停掉 watchdog
+    if (this._watchdogTimer) { clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     this.countdown=null; this.cover=false;
+}
+_startWatchdog() {
+    if (this._watchdogTimer) clearInterval(this._watchdogTimer);
+    this._watchdogTimer = setInterval(() => {
+        if (this._destroyed) return;
+        if (this.state !== 'battle') return;
+        if (this.netMode) return;
+        if (!this.players.every(p => p.botType)) return;   // 只看 AI vs AI
+        // 有 modal 開著 → 代表在等玩家/AI 處理，不算卡住
+        if (this.scry || this.jianxiong || this.quanheng || this.lianying ||
+            this.guanyu || this.xunyu || this.diaochan || this.xunyou || this._paymentState) return;
+        if (this.countdown !== null) return;
+
+        // 判斷「應該有人在動作，但沒有排程任何計時器」
+        const idle = Date.now() - (this._lastActivityTime || 0);
+        if (idle < 8000) return;   // 8 秒內有活動 → 正常
+
+        const needsTurn    = this.phase === 'turn'   && this.isAI(this.current) && !this.players[this.current].passed;
+        const needsPreEnd  = this.phase === 'preend' && this.preEndOrder && this.isAI(this.preEndOrder[this.preEndIdx]) && !this.preEndDone[this.preEndIdx];
+        const needsHandoff = !!this.cover;
+
+        if (needsTurn || needsPreEnd || needsHandoff) {
+            console.warn('[watchdog] AI freeze detected',
+                { phase: this.phase, current: this.current, idle: idle + 'ms' });
+            this.addLog('sys', `⚠️ AI 停滯偵測（${(idle/1000).toFixed(1)}s）— 自動恢復中…`);
+            this.aiTimer = null;
+            try { this.scheduleAI(); } catch (e) { console.error('[watchdog]', e); }
+        }
+    }, 3000);
 }
 /* ============ 遊戲選單 ============ */
 renderBackBtn() {
@@ -4435,10 +4476,12 @@ _delay(ms) {
 }
 _sleep(ms) { return sleep(this._delay(ms)); }
 _sTO(fn, ms) {
-    // v3.6: track timer so we can cancel it on destroy; also guard the callback.
+    // v3.11: 追蹤活動時間，供 watchdog 使用
+    this._lastActivityTime = Date.now();
     const id = setTimeout(() => {
         if (this._allTimers) this._allTimers.delete(id);
         if (this._destroyed) return;
+        this._lastActivityTime = Date.now();
         try { fn(); } catch(e) { console.error('[timer]', e); }
     }, this._delay(ms));
     if (this._allTimers) this._allTimers.add(id);
@@ -4769,6 +4812,7 @@ startBattle() {
         for (let bi = 0; bi < this.fieldCount; bi++)
             this.players[pi].fields[bi].forEach(c => c.lianhuan = false);
     this._simaYiLastChanceUsed = false;
+    this._yinrenUsedThisRound = false;   // ★ v3.12: 隱忍每輪只觸發一次
 
     for (let pi = 0; pi < this.numPlayers; pi++) {
         this.players[pi].passed = false;
@@ -5061,8 +5105,11 @@ _ctxFor(pi, self, bi, target) {
         myField: game.players[pi].fields[bi],
         enemyField: game.players[opp].fields[bi],
         enemyFields: enemies.map(e => game.players[e].fields[bi]),
-        isLosing: game.fieldPower(pi, bi, false) < game.fieldPower(opp, bi, false),
-        isWinning: game.fieldPower(pi, bi, false) > game.fieldPower(opp, bi, false),
+        // ★ v3.13: 若處於結算階段（settle / preend 尾段），使用 atSettle=true
+        isLosing: game.fieldPower(pi, bi, game.phase === 'settle')
+                < game.fieldPower(opp, bi, game.phase === 'settle'),
+        isWinning: game.fieldPower(pi, bi, game.phase === 'settle')
+                 > game.fieldPower(opp, bi, game.phase === 'settle'),
         log: (m) => game.addLog(pi, m),
         drawCard: (n) => game.drawTo(pi, n)
     };
@@ -5334,7 +5381,20 @@ cardThreatValue(c) {
    呼叫端使用 `game.applyDamage(target, 1, targetOwnerPi, targetBi)`。 */
 applyDamage(target, amount, targetPi, targetBi, sourceInst = null) {
     if (amount <= 0) return 0;
-
+	
+    // ★ v3.13: 程普【督戰】——所在陣地友軍免受戰力傷害
+    const field = this.players[targetPi].fields[targetBi];
+    const hasDuzhan = field.some(c =>
+        !c.faceDown && (c.data.skills||[]).includes('督戰'));
+    if (hasDuzhan && target.uid !== undefined) {
+        // 找出督戰卡自己（督戰只保護友軍，不保護施放者？）
+        // 依描述「所在陣地友軍」→ 保護其他友軍，也保護督戰自己
+        const duzhanCard = field.find(c => !c.faceDown && (c.data.skills||[]).includes('督戰'));
+        if (duzhanCard !== target) {
+            this.addLog(targetPi, `🛡️ 程普【督戰】：${target.data.name} 免受戰力傷害`);
+            return 0;
+        }
+    }
     // 曹仁 堅守（鎖定技）：所在陣地劣勢時，本陣友軍戰力不會減少
     const hasJianshou = this.players[targetPi].fields[targetBi].some(c =>
         !c.faceDown && (c.data.skills||[]).includes('堅守'));
@@ -5425,6 +5485,13 @@ _triggerPreTurnFlip() {
     const enemies = this.enemiesOf(this.current);
     for (const owner of enemies) {
         const ownerP = this.players[owner];
+        // ★ v3.13: 若 owner 場上有督戰，冷箭完全失效
+        const hasDuzhan = ownerP.fields[bi].some(c =>
+            !c.faceDown && (c.data.skills||[]).includes('督戰'));
+        if (hasDuzhan) {
+            this.addLog(owner, `🛡️ 程普【督戰】：本陣冷箭全部被擋下`);
+            continue;
+        }
         const fus = ownerP.fields[bi].filter(c =>
             c.faceDown && !c.silenced &&
             ((c.data.skills||[]).includes('冷箭') || (c.data.skills||[]).includes('伏擊')));
@@ -5475,7 +5542,15 @@ _shouldPlayFaceUp(card, pi, bi) {
     }
 
     if (d.onEnter || d.onEnemyEnter) return true;
-
+    // ★ v3.12: 呂蒙【潛襲】—— 正面進場 +1 戰力
+    //   例外：己方已有潘璋【斷路】鋪場時，背面進場可吃斷路 +1，優先背面
+    if (d.id === 'lumeng') {
+        const myFieldRef = this.players[pi].fields[bi];
+        const hasDuanlu = myFieldRef.some(c =>
+            !c.faceDown && !c.silenced && (c.data.skills||[]).includes('斷路'));
+        if (!hasDuanlu) return true;   // 沒斷路 → 正面進場吃潛襲 +1
+        // 有斷路 → 繼續往下判斷（通常會回傳 false → 背面）
+    }
     const FACE_UP_ENGINES = ['觀星','權衡','連營','奸雄','設伏'];
     if (sk.some(s => FACE_UP_ENGINES.includes(s))) return true;
 
@@ -5909,13 +5984,14 @@ finishAction() {
     const opp = this.opponentOf(this.current);
 
     // 隱忍：對手放棄後，只要己方有司馬懿在場，對手出牌後可重新出牌
+    // ★ v3.12: 每輪最多觸發一次，避免 3+ 人局死循環
     const oppHasYinren = this.players[opp].fields.some(f => f.some(c =>
         !c.faceDown && !c.silenced && (c.data.skills||[]).includes('隱忍')));
-    if (this.players[opp].passed && oppHasYinren) {
+    if (this.players[opp].passed && oppHasYinren && !this._yinrenUsedThisRound) {
+        this._yinrenUsedThisRound = true;
         this.players[opp].passed = false;
         this.addLog(opp, `[R${this.round}] 司馬懿【隱忍】：${this.players[opp].name} 可再次出牌`);
     }
-
     const opponentPassed = this.players[opp].passed;
     if (opponentPassed && this.players.filter(pl => !pl.passed).length === 1) {
         this.players.forEach(p => p.hand.forEach(c => c.justDrawn = false));
@@ -8176,7 +8252,7 @@ async settle() {
             // Betray to left neighbor (opponentOf)
             const leftFoe = this.opponentOf(pi);
             const foes = this.players[leftFoe].fields[fb];
-            const movers = own.filter(c => !c.faceDown && !c.silenced && (c.data.skills||[]).includes('反骨') && !c.activated);
+            const movers = own.filter(c => !c.faceDown && (c.data.skills||[]).includes('反骨') && !c.activated);
             movers.forEach(c => {
                 own.splice(own.indexOf(c), 1);
                 c.activated = true; c.betrayed = true; c.betrayedFrom = pi;
@@ -8403,6 +8479,7 @@ nextRound() {
     // ★ v4.0: 整場遊戲只在開局時清一次帳本（見 startBattle）
     // ★ v3.9 FIX: 這些是 R1 遺留狀態，不清會污染 R2 的 preEnd / 隱忍判定
     this._simaYiLastChanceUsed = false;
+    this._yinrenUsedThisRound = false;   // ★ v3.12
     this.preEndOrder = null;
     this.preEndIdx = 0;
     this.preEndDone = [];
@@ -8727,6 +8804,13 @@ renderGameOver() {
         };
         this._autoRestartTick = setTimeout(tick, tickEvery);
         this._autoRestartFire = setTimeout(() => {
+            // ★ 先停止舊遊戲的一切
+            this._autoRestartCancelled = true;   // 防止再次排程
+            if (this._autoRestartTick) { clearTimeout(this._autoRestartTick); this._autoRestartTick = null; }
+            this.clearAllTimers();               // ← 關鍵：設 _destroyed=true，清所有 _sTO
+            // 明確清掉兩個自動重開計時器
+            try { clearTimeout(this._autoRestartFire); } catch (e) {}
+
             let cfgCopy;
             try {
                 cfgCopy = JSON.parse(JSON.stringify(this.cfg));
@@ -8736,12 +8820,18 @@ renderGameOver() {
             }
             cfgCopy.seed = '';
             cfgCopy._rematchVotes = undefined;
-            try {
-                window.game = new Game(cfgCopy);
-                console.log('[auto-restart] 新對局已開始');
-            } catch (e) {
-                console.error('[auto-restart] 建立新對局失敗：', e);
-            }
+            cfgCopy.autoRestart = true;
+            cfgCopy.autoExport = this.cfg.autoExport;
+
+            // 給瀏覽器一個 microtask 讓舊實例的殘留 render 完成
+            setTimeout(() => {
+                try {
+                    window.game = new Game(cfgCopy);
+                    console.log('[auto-restart] 新對局已開始');
+                } catch (e) {
+                    console.error('[auto-restart] 建立新對局失敗：', e);
+                }
+            }, 0);
         }, delay);
     }
 
@@ -10362,7 +10452,7 @@ function openViewer() {
                 if (s && s.plays > 0) {
                     const pct = Math.round((s.wins / s.plays) * 100);
                     const col = pct >= 60 ? '#7cff7c' : (pct >= 40 ? '#ffd700' : '#ff7b7b');
-                    const tip = `「打出此牌的玩家」贏得該輪的比例\n（出場 ${s.plays} 次，勝 ${s.wins} 次）`;
+                    const tip = `「打出此牌的玩家」最終贏得整場遊戲的比例\n（出場 ${s.plays} 場，勝 ${s.wins} 場）`;
 statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.85);color:${col};font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid ${col};font-weight:bold;z-index:2;cursor:help;">${pct}% (${s.plays})</div>`;
                 } else {
                     statBadge = `<div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.5);color:#777;font-size:11px;padding:2px 6px;border-radius:4px;z-index:2;">—</div>`;
@@ -10388,8 +10478,8 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
 			 ${statBucket === 'ai'
 				? '🤖 僅統計「困難 AI vs 困難 AI」對局'
 				: '🧑 僅統計人類玩家對局'}<br>
-			 <span style="color:#ffd700;">勝率＝打出此牌的玩家最後贏得該輪的比例</span>
-			 · 格式：勝率% (出場次數) · 滑鼠移到數字可看詳細
+			 <span style="color:#ffd700;">勝率＝打出此牌的玩家最終贏得整場遊戲的比例</span>
+			 · 格式：勝率% (出場遊戲場次) · 滑鼠移到數字可看詳細
 		   </p>`
 		: '';
 
