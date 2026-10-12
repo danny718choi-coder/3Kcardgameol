@@ -371,7 +371,15 @@ h1,h2,h3{color:#ffd700}
 .viewer-toolbar button.on{background:linear-gradient(180deg,#c8a040,#8a6020);color:#fff;border-color:#ffd700}
 .viewer-toolbar button:hover{filter:brightness(1.2)}
 .viewer-section{margin-bottom:16px}
-.viewer-section h3{font-size:14px;color:#e8c060;letter-spacing:3px;margin-bottom:6px;border-bottom:1px solid rgba(200,160,64,.25);padding-bottom:4px}
+.viewer-section h3{font-size:14px;color:#e8c060;letter-spacing:3px;margin-bottom:6px;border-bottom:1px solid rgba(200,160,64,.25);padding-bottom:4px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;transition:color .15s}
+.viewer-section h3:hover{color:#ffd700}
+.viewer-section .vs-chevron{display:inline-block;font-size:11px;color:#c8a040;transition:transform .25s;width:12px;flex-shrink:0}
+.viewer-section.collapsed .vs-chevron{transform:rotate(-90deg)}
+.viewer-section.collapsed .viewer-grid{display:none}
+.viewer-section .vs-count{font-size:12px;color:#a89070;font-weight:normal;letter-spacing:0}
+.viewer-toggle-all-bar{display:flex;justify-content:center;gap:8px;margin-bottom:10px}
+.viewer-toggle-all-bar button{padding:5px 14px;font-size:12px;border-radius:6px;border:1px solid #6a4a20;background:linear-gradient(180deg,#3a2a1a,#1a0f05);color:#d8c090;cursor:pointer;font-family:inherit;font-weight:bold;transition:.15s}
+.viewer-toggle-all-bar button:hover{filter:brightness(1.2)}
 .viewer-grid{display:flex;flex-wrap:wrap;gap:8px}
 .viewer-card-wrap{cursor:pointer;transition:.15s;border-radius:8px;padding:2px;position:relative}
 .viewer-card-wrap:hover{transform:translateY(-4px);filter:brightness(1.15);box-shadow:0 0 18px rgba(255,215,0,.45)}
@@ -4549,6 +4557,30 @@ setupFlip() {
 _checkAutoFlip() {
     if (this.state !== 'flip') return;
     if (this.flipAutoTimer) { clearTimeout(this.flipAutoTimer); this.flipAutoTimer = null; }
+
+    const allBots = this.players.every(p => p.botType);
+
+    // ★ AI vs AI: 一次短排程把所有翻牌 + 開場一次完成，跳過慢動畫
+    if (allBots) {
+        this.flipAutoTimer = setTimeout(() => {
+            this.flipAutoTimer = null;
+            if (this.state !== 'flip') return;
+            // 依序翻開所有 AI 的牌（revealFlip 內有平手處理）
+            for (let i = 0; i < this.numPlayers; i++) {
+                if (this.state !== 'flip') return;   // 平手重抽會改 state 再回來
+                if (!this.flipRevealed[i]) this.revealFlip(i);
+            }
+            // 若已全部翻開且先手確定 → 立刻開始
+            if (this.state === 'flip'
+                && this.firstPlayer !== null
+                && this.flipRevealed.every(x => x)) {
+                this.beginBattle();
+            }
+        }, 30);
+        return;
+    }
+
+    // ── 原本邏輯：人類對戰 ──
     for (let i = 0; i < this.numPlayers; i++) {
         if (!this.flipRevealed[i] && this.isAI(i)) {
             this.flipAutoTimer = setTimeout(() => {
@@ -4629,7 +4661,7 @@ revealFlip(i) {
                 this.flipRevealed = new Array(this.numPlayers).fill(false);
                 this.render();
                 this._checkAutoFlip();
-            }, 900);
+            }, this.players.every(p => p.botType) ? 30 : 900);
             return;
         }
 
@@ -6331,7 +6363,45 @@ decidePlayAI(pi) {
     else if (oppPassed && myLead >= 3 && diff === 'hard') { shouldPlay = this.rng() < 0.4; reason = 'moderate_lead'; }
     else if (oppPassed && iAmSecondPlayer && Math.abs(myEffectivePow - oppEffectivePow) <= 3) { shouldPlay = true; reason = 'break_tie'; }
     else if (oppPassed && myFieldEmpty) { shouldPlay = true; reason = 'empty_field'; }
-    else if (oppPassed && myPow < oppPow) { shouldPlay = true; reason = 'behind_opp'; }
+    else if (oppPassed && myPow < oppPow) {
+        // ★ v3.10: 落後不代表要無腦追——先算「還追不追得上」
+        // 對手已放棄，估算對手翻面後的最高潛在戰力
+        const oppPendingFlip = oppField.filter(c => c.faceDown)
+            .reduce((s, c) => s + (c.data.power || 0), 0);
+        const oppPotential = oppPow + oppPendingFlip;
+
+        // 我方剩餘資源能擠出的最高戰力（保守：每張平均 3 點，扣掉糧草限制）
+        const affordableCards = p.hand
+            .filter(c => !c.data.forceFaceDown && c.data.cost <= p.food)
+            .map(c => c.data.power || 0)
+            .sort((a, b) => b - a);
+        const maxAchievable = myEffectivePow + affordableCards
+            .slice(0, Math.max(1, Math.floor(p.food / 2)))
+            .reduce((s, v) => s + v, 0);
+
+        const canStillWin = maxAchievable > oppPotential + 1;
+        const canTie = maxAchievable >= oppPotential;
+
+        if (!canStillWin && !canTie) {
+            // 完全追不上 → 停手，保留資源給下一輪
+            shouldPlay = false;
+            reason = 'unreachable_give_up';
+        } else if (!canStillWin && canTie && !isLastRound) {
+            // 只能追平、且不是最後一輪 → 保留資源更划算
+            // （因為平手要看先手方，後手追平 = 輸）
+            const iAmFirst = (this.roundFirstPlayer === pi);
+            if (!iAmFirst) {
+                shouldPlay = false;
+                reason = 'tie_useless_for_second';
+            } else {
+                shouldPlay = true;
+                reason = 'behind_opp';
+            }
+        } else {
+            shouldPlay = true;
+            reason = 'behind_opp';
+        }
+    }
     else if (oppPassed) {
     // v3.4：對手已放棄。後手平手視為輸 → -1 修正
     const oppFlipRisk = oppField.filter(c => c.faceDown).length * 3.5;   // 提高風險估算
@@ -7448,6 +7518,46 @@ if ((d.skills || []).includes('反骨')) {
         score += bestFlipBonus;
     }	
     if (diff === 'hard') {
+	        /* ★ v3.10: 糧草保留智慧
+           核心：不要為了「一時的最大戰力」把糧草耗盡，
+           導致後續無法回應對手的關鍵威脅（如關羽、呂布、上將等）。
+           規則：
+             ① 開局（我方場上無牌）時，優先出便宜牌（≤2 費），把貴牌留作 response
+             ② 若出完這張後剩餘糧草 < 手上最便宜的「需要糧草的牌」 → 重罰
+             ③ 決勝輪（mustWinThisRound）例外，可以梭哈
+        */
+        {
+            const foodAfter = p.food - (d.cost || 0);
+            const otherCards = p.hand.filter(x => x.uid !== c.uid && !x.data.forceFaceDown);
+            const otherCosts = otherCards.map(x => x.data.cost).filter(v => v > 0);
+            const minOtherCost = otherCosts.length > 0 ? Math.min(...otherCosts) : 0;
+
+            // ① 開局貴牌懲罰（對手下回合還有很多牌可出）
+            if (ctx.isFirstMoveOfRound && !ctx.mustWinThisRound) {
+                if (d.cost >= 3 && otherCards.length >= 2) {
+                    const expensiveLeft = otherCards.filter(x => x.data.cost >= 3).length;
+                    // 手上還有貴牌 → 不要先出貴牌
+                    score -= 5 + expensiveLeft * 3;
+                }
+            }
+
+            // ② 出完後糧草見底的懲罰
+            if (!ctx.mustWinThisRound && otherCards.length >= 2) {
+                // 出完後連最便宜的牌都出不起
+                if (foodAfter < minOtherCost && minOtherCost > 0) {
+                    score -= 12;
+                }
+                // 出完後只剩 1 張能出的空間
+                else if (foodAfter === minOtherCost) {
+                    score -= 5;
+                }
+                // 留下 0~1 糧且手上還有 3+ 張（含貴牌）→ 加重罰
+                if (foodAfter <= 1 && p.hand.length >= 3) {
+                    const hasExpensive = otherCards.some(x => x.data.cost >= 3);
+                    if (hasExpensive) score -= 8;
+                }
+            }
+        }
 	        // ★ v3.9: 若手上持有 魏延/鄧艾，且存在「可翻盤的過去陣地」，
         // 本回合不應把糧草用光，需預留 preend 出牌的費用。
         if (!d.isGeneral && !d.forceFaceDown) {
@@ -7489,25 +7599,40 @@ if ((d.skills || []).includes('反骨')) {
 			score -= 2;
 		}
 
-		// v3.4：平手先手勝。後手方任何平手都等於輸，必須積極拉開
+		// v3.10：平手先手勝。後手方任何平手都等於輸，必須積極拉開
 		const iAmFirst = (this.roundFirstPlayer === pi);
-		if (!opp.passed) {
-			const margin = myPow - oppPow;
+		{
+			// ★ 先算對手可能的翻面戰力（保守估計）
+			const oppFieldRef = this.players[this.opponentOf(pi)].fields[bi];
+			const oppPendingFlip = oppFieldRef.filter(c => c.faceDown)
+				.reduce((s, c) => s + Math.max(3, c.data.power || 3), 0);
+			const oppLikelyFinal = oppPow + oppPendingFlip;
+
+			// 我方「現在能打出的最高戰力」對局面造成的效果
+			const myNewPower = myPow + (d.power || 0);
+			const marginAfterPlay = myNewPower - oppLikelyFinal;
+
 			if (!iAmFirst) {
-				// 後手：任何平手都會輸
-				if (margin <= 0) {
-					// 落後或平手 → 必須加碼
-					score += 5;
-					if (d.power >= 3) score += 3;
-					if (d.power >= 5) score += 2;
-				} else if (margin <= 2) {
-					// 小領先尚未安全 → 繼續施壓
-					score += 2;
-					if (d.power >= 3) score += 2;
+				// 後手：平手就是輸。必須讓 marginAfterPlay ≥ 1
+				if (marginAfterPlay <= 0) {
+					// 這一擊還不夠，繼續加碼
+					score += 8;
+					if (d.power >= 3) score += 4;
+					if (d.power >= 5) score += 3;
+				} else if (marginAfterPlay <= 2) {
+					// 小贏，但還沒安全（對手可能有伏兵）
+					score += 4;
 				}
+				// 若這張能一次拉開 ≥ 4，大力加分
+				if (marginAfterPlay >= 4) score += 5;
 			} else {
-				// 先手：小幅領先即為勝 → 避免無謂消耗
-				if (margin >= 1 && margin <= 2 && d.power <= 3) score -= 2;
+				// 先手：margin ≥ 1 就贏，避免無謂消耗
+				const currentMargin = myPow - oppLikelyFinal;
+				if (currentMargin >= 1 && currentMargin <= 3) {
+					// 已經領先，別再加碼
+					if (d.cost >= 3) score -= 6;
+					if (d.cost >= 2 && d.power <= 3) score -= 3;
+				}
 			}
 		}
         const projected = myPow + (d.power || 0);
@@ -8176,9 +8301,21 @@ async settle() {
         this.state = 'gameover';
         const winNames = winningPlayers.map(p => this.players[p].name).join(' & ');
         this.addLog('sys', `═══ ${winNames} 贏得最終勝利！═══`);
-        // ★ v4.0: 寫入整場勝率
         this._recordGameStats(winningPlayers);
-        // ...（以下原本的 AI 聊天、recordEvent、saveReplayToLocal、autoRestart 全部保留）
+        // ★ 補回 AI 聊天 / recordEvent / 存檔 / 匯出
+        for (let pi = 0; pi < this.numPlayers; pi++) {
+            if (!this.isAI(pi)) continue;
+            const won = winningPlayers.includes(pi);
+            this._sTO(() => this.aiChatTrigger(pi, 'gameover', { won }), 900 + this.rng() * 800);
+        }
+        this.recordEvent('game_over', {
+            winner: this.gameWinner,
+            winners: winningPlayers,
+            totalRounds: this.round
+        });
+        this.saveReplayToLocal();
+        const allBots = this.players.every(p => p.botType);
+        if (allBots && this.cfg.autoExport) this._sTO(() => this.downloadReplay(true), 400);
         this.render(); return;
     }
 
@@ -8575,14 +8712,36 @@ renderGameOver() {
     const isAIvsAI = this.players.every(p => p.botType);
 
     // ★ 定時器必須在 return「之前」執行——放後面是死代碼
-    if (isAIvsAI && this.cfg.autoRestart && !this._autoRestartQueued) {
+    if (isAIvsAI && this.cfg.autoRestart && !this._autoRestartQueued && !this._autoRestartCancelled) {
         this._autoRestartQueued = true;
-        const delay = this.cfg.autoRestartDelay || 2000;
-        this._sTO(() => {
-            const cfg = JSON.parse(JSON.stringify(this.cfg));
-            cfg.seed = '';                    // 新局用新種子
-            cfg._rematchVotes = undefined;
-            window.game = new Game(cfg);
+        // ★ 用固定 2 秒以上延遲（不除以 AI 速度），確保你看得到結果畫面
+        const delay = Math.max(2000, this.cfg.autoRestartDelay || 2000);
+        const tickEvery = 500;
+        let remaining = delay;
+        const tick = () => {
+            if (this._destroyed) return;
+            remaining -= tickEvery;
+            const el = document.getElementById('autorestart-countdown');
+            if (el) el.textContent = Math.max(0, Math.ceil(remaining / 1000));
+            if (remaining > 0) this._autoRestartTick = setTimeout(tick, tickEvery);
+        };
+        this._autoRestartTick = setTimeout(tick, tickEvery);
+        this._autoRestartFire = setTimeout(() => {
+            let cfgCopy;
+            try {
+                cfgCopy = JSON.parse(JSON.stringify(this.cfg));
+            } catch (e) {
+                console.error('[auto-restart] cfg 複製失敗：', e);
+                return;
+            }
+            cfgCopy.seed = '';
+            cfgCopy._rematchVotes = undefined;
+            try {
+                window.game = new Game(cfgCopy);
+                console.log('[auto-restart] 新對局已開始');
+            } catch (e) {
+                console.error('[auto-restart] 建立新對局失敗：', e);
+            }
         }, delay);
     }
 
@@ -8607,8 +8766,15 @@ renderGameOver() {
         ${this.netMode ? `<p style="font-size:12px;color:#a89070;margin-top:10px;">${this._renderRematchStatus()}</p>` : ''}
         <p style="font-size:13px;color:#7cff7c;margin-top:10px;font-family:monospace;letter-spacing:2px;">🌱 種子：${this.seed}</p>
         <p style="font-size:12px;color:#a89070;margin-top:14px;">
-            本場已存入本地快取。${isAIvsAI && this.cfg.autoExport ? '並已自動下載。' : ''}<br>
-            ${isAIvsAI && this.cfg.autoRestart ? '<b style="color:#7cff7c;">2 秒後自動重新開局…</b><br>' : ''}
+            本場已存入本地快取。${isAIvsAI && this.cfg.autoExport ? '並已自動下載 JSON。' : (isAIvsAI ? '' : '')}<br>
+            ${isAIvsAI && this.cfg.autoRestart && !this._autoRestartCancelled
+                ? `<b style="color:#7cff7c;font-size:14px;">⏳ <span id="autorestart-countdown">2</span> 秒後自動重新開局…</b><br>
+                   <button class="btn" style="margin-top:6px;font-size:12px;padding:4px 12px;" onclick="cancelAutoRestart()">✋ 取消自動重開</button><br>`
+                : (isAIvsAI && this.cfg.autoRestart && this._autoRestartCancelled
+                    ? `<b style="color:#ff9c4a;font-size:14px;">✋ 已取消自動重開</b><br>`
+                    : '')}
+            ${isAIvsAI && !this.cfg.autoRestart ? '（可在「遊戲設定」勾選「自動重新開局」讓 AI 對戰連續跑）<br>' : ''}
+            ${isAIvsAI && !this.cfg.autoExport ? '（可在「遊戲設定」勾選「自動下載 JSON 記錄」）<br>' : ''}
             回到主選單可用「📜 回放記錄」瀏覽所有對戰。
         </p>
     </div></div>`;
@@ -9732,6 +9898,15 @@ renderModals() {
 }
 
 let viewerMode = 'id';
+function cancelAutoRestart() {
+    const g = window.game;
+    if (!g) return;
+    if (g._autoRestartTick) { clearTimeout(g._autoRestartTick); g._autoRestartTick = null; }
+    if (g._autoRestartFire) { clearTimeout(g._autoRestartFire); g._autoRestartFire = null; }
+    g._autoRestartQueued = true;
+    g._autoRestartCancelled = true;
+    g.render();
+}
 function showSetup() {
     document.getElementById('app').innerHTML = `
     <div class="setup">
@@ -9787,11 +9962,11 @@ function showSetup() {
                     </div>
 					<div class="num-item" style="grid-column:1/-1;">
 						<span>📥 AI vs AI 對戰結束時，自動下載 JSON 記錄</span>
-						<input type="checkbox" id="cfg-autoExport" style="width:auto;cursor:pointer;accent-color:#c8a040;">
+						<input type="checkbox" id="cfg-autoExport" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
 					</div>
 					<div class="num-item" style="grid-column:1/-1;">
 						<span>🔁 AI vs AI 對戰結束後，自動重新開局</span>
-						<input type="checkbox" id="cfg-autoRestart" style="width:auto;cursor:pointer;accent-color:#c8a040;">
+						<input type="checkbox" id="cfg-autoRestart" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
 					</div>					
                     <label class="num-item"><span>初始糧草</span><input type="number" id="cfg-initialFood" value="7" min="0" max="30"></label>
                     <label class="num-item"><span>勝利額外糧草</span><input type="number" id="cfg-winBonus" value="1" min="0" max="20"></label>
@@ -10083,6 +10258,36 @@ function downloadLogByIndex(idx) {
 window.__viewerVanilla  = (typeof window.__viewerVanilla  === 'undefined') ? true : window.__viewerVanilla;
 window.__viewerExtended = (typeof window.__viewerExtended === 'undefined') ? true : window.__viewerExtended;
 
+/* ============ 卡牌庫折疊功能 ============ */
+window.__viewerCollapsed = (() => {
+    try {
+        const saved = safeStore.get('sanguo_viewerCollapsed');
+        if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return { shu: false, wei: false, wu: false, qun: false };
+})();
+
+function toggleFactionCollapse(fac) {
+    if (!window.__viewerCollapsed) window.__viewerCollapsed = {};
+    window.__viewerCollapsed[fac] = !window.__viewerCollapsed[fac];
+    try {
+        safeStore.set('sanguo_viewerCollapsed', JSON.stringify(window.__viewerCollapsed));
+    } catch(e) {}
+    const section = document.querySelector(`.viewer-section[data-fac="${fac}"]`);
+    if (section) section.classList.toggle('collapsed', !!window.__viewerCollapsed[fac]);
+}
+
+function setAllFactionsCollapsed(collapsed) {
+    if (!window.__viewerCollapsed) window.__viewerCollapsed = {};
+    FACTION_ORDER.forEach(f => { window.__viewerCollapsed[f] = !!collapsed; });
+    try {
+        safeStore.set('sanguo_viewerCollapsed', JSON.stringify(window.__viewerCollapsed));
+    } catch(e) {}
+    document.querySelectorAll('.viewer-section').forEach(s => {
+        s.classList.toggle('collapsed', !!collapsed);
+    });
+}
+
 function openViewer() {
     const slot = document.getElementById('modal-slot');
     if (!slot) return;
@@ -10147,8 +10352,8 @@ function openViewer() {
     let content = '';
     FACTION_ORDER.forEach(f => {
         if (!byFac[f] || !byFac[f].length) return;
-        content += `<div class="viewer-section"><h3>${FACTION_INFO[f].name}（${byFac[f].length} 張）</h3><div class="viewer-grid">`;
-        content += byFac[f].map(item => {
+        const collapsed = !!window.__viewerCollapsed[f];
+        content += `<div class="viewer-section ${collapsed ? 'collapsed' : ''}" data-fac="${f}"><h3 onclick="toggleFactionCollapse('${f}')"><span class="vs-chevron">▼</span>${FACTION_INFO[f].name}<span class="vs-count">（${byFac[f].length} 張）</span></h3><div class="viewer-grid">`;        content += byFac[f].map(item => {
             const d = item.def;
             const badge = item.total > 1 ? `<div class="viewer-badge">${item.idx + 1}/${item.total}</div>` : '';
             let statBadge = '';
@@ -10192,6 +10397,10 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
         <h2>卡牌庫（合計 ${pool.length} 張）</h2>
         <div class="viewer-toolbar">${btnVanilla}${btnExtended}</div>
         <div class="viewer-toolbar">${sortBtns}</div>
+        <div class="viewer-toggle-all-bar">
+            <button onclick="setAllFactionsCollapsed(false)">🔽 展開全部</button>
+            <button onclick="setAllFactionsCollapsed(true)">🔼 收合全部</button>
+        </div>
         ${statsHint}
         <div>${content}</div>
         <div style="text-align:center;margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
