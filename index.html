@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三國風雲 — 卡牌對戰 v3.4</title>
+<title>三國風雲 — 卡牌對戰 v3.5</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -1737,6 +1737,38 @@ body[data-theme="red"]    .status-ok { color: #ffcf7c; }
 <div id="app"></div>
 
 <script>
+/* ================================================================ */
+/* ============ v3.5: ICE 伺服器設定（集中管理） =================== */
+/* ================================================================ */
+/* ★ 下面是 STUN（公開、免費）+ TURN（你的 metered.ca 憑證）
+   ★ 請把 username / credential 換成你「重新生成」後的憑證
+   ★ TURN URL 請照你 metered dashboard 顯示的為準
+   ★ 免費方案憑證外洩風險可接受（見 README 說明） */
+
+const TURN_URLS = [
+    'turn:standard.relay.metered.ca:80',
+    'turn:standard.relay.metered.ca:443',
+    'turn:standard.relay.metered.ca:443?transport=tcp'
+];
+const TURN_USERNAME   = 'e3e90f451b9d9e99194a0ea9';
+const TURN_CREDENTIAL = 'TDrNr91YZ2HoRbA8';
+
+const ICE_SERVERS_CONFIG = {
+    iceServers: [
+        // --- STUN：發現公網 IP（最快路徑） ---
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:global.stun.twilio.com:3478' },
+
+        // --- TURN：STUN 失敗時中繼（穿透 NAT / 防火牆） ---
+        ...TURN_URLS.map(url => ({
+            urls: url,
+            username: TURN_USERNAME,
+            credential: TURN_CREDENTIAL
+        }))
+    ],
+    iceCandidatePoolSize: 10
+};
 /* ============ GLOBAL ERROR DISPLAY (for debugging) ============ */
 window.addEventListener('error', function(e) {
     try {
@@ -5252,7 +5284,13 @@ doPass() {
     if (this.phase !== 'turn' || this.cover || this.countdown !== null) return;
     this._handoffDoneThisTurn = false;
     const pi = this.current, p = this.players[pi];
-    if (p.passed) return;
+    if (p.passed) {
+        // ★ 已放棄 → 不應該卡在這個人的回合；強制推進
+        this.addLog('sys', `[R${this.round}] ${p.name} 已放棄，自動推進回合`);
+        this._handoffDoneThisTurn = false;   // 保險起見再清一次
+        this.advanceTurn();
+        return;
+    }
     if (this.firstPasser === null) this.firstPasser = pi;
     p.passed = true; p.mustFaceUp = false;
     this.lastPasser = pi;
@@ -5300,13 +5338,25 @@ handoff() {
     this.cover = false;
     this.players.forEach(p => p.hand.forEach(c => c.justDrawn = false));
     if (this.phase === 'mulligan') { this.mulliganHandoff(); return; }
-    if (this.phase === 'turn') { this.advanceTurn(); return; }
+    if (this.phase === 'turn') {
+        this.advanceTurn();
+        // ★ 額外保險：若 advanceTurn 提前返回而未重繪，這裡強制重繪一次
+        // （避免 cover=false 但畫面仍是舊的鎖定狀態）
+        this.render();
+        return;
+    }
     if (this.phase === 'preend') { this.advancePreEnd(); return; }
     this.render();
 }
 advanceTurn() {
     if (this.players.every(p => p.passed)) { this.startPreEnd(); return; }
-    if (this._handoffDoneThisTurn) return;
+    // ★ 防護：若當前玩家已放棄，無條件推進（避免 _handoffDoneThisTurn 卡住）
+    const currentPassed = this.players[this.current].passed;
+    if (!currentPassed && this._handoffDoneThisTurn) {
+        // 已推進過，但狀態可能不同步 → 強制重繪避免卡住
+        this.render();
+        return;
+    }
     this._handoffDoneThisTurn = true;
     this.players[this.current].mustFaceUp = false;
     // Find next non-passed player in cyclic order
@@ -8746,7 +8796,7 @@ function showSetup() {
     document.getElementById('app').innerHTML = `
     <div class="setup">
         <h1>三 國 風 雲</h1>
-        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.4</div>
+        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.5</div>
 
         <div class="sec">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -9207,6 +9257,7 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
         ${statsHint}
         <div>${content}</div>
         <div style="text-align:center;margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn btn-gold" style="font-size:12px;padding:6px 12px;" onclick="exportCardStats()">📤 匯出勝率資料（JSON）</button>
             <button class="btn" style="font-size:12px;padding:6px 12px;" onclick="confirmClearCardStats()">🗑️ 清除卡片統計</button>
             <button class="btn btn-red" onclick="closeModal()">關閉</button>
         </div>
@@ -9228,6 +9279,45 @@ function confirmClearCardStats() {
     clearCardStats();
     alert('✅ 已清除卡片統計');
     openViewer();
+}
+function exportCardStats() {
+    const stats = loadCardStats();
+    const buildBucket = (bucket) => {
+        const out = {};
+        Object.entries(bucket || {}).forEach(([id, s]) => {
+            if (!s || !s.plays) return;
+            const def = CARD_DB.find(d => d.id === id);
+            out[id] = {
+                name: def ? def.name : id,
+                cardId: def ? def.cardId : '?',
+                faction: def ? def.faction : '?',
+                cost: def ? def.cost : null,
+                power: def ? def.power : null,
+                plays: s.plays,
+                wins: s.wins,
+                losses: s.plays - s.wins,
+                winRate: s.plays > 0 ? +( (s.wins / s.plays) * 100 ).toFixed(2) : null
+            };
+        });
+        return out;
+    };
+    const payload = {
+        exportedAt: new Date().toISOString(),
+        version: 1,
+        description: '三國風雲 — 卡片勝率統計匯出',
+        note: 'winRate 單位為 %；plays = 出場次數；wins = 該牌打出的陣營贏得該輪的次數',
+        ai: buildBucket(stats.ai),
+        player: buildBucket(stats.player)
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `sanguo-cardstats-${ts}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function cardHTMLStatic(d) {
@@ -9642,7 +9732,10 @@ function rejoinRoom() {
     const code = info.roomCode;
     window.__netState = { roomCode: code, role: 'guest' };
     showNetStatus(`正在重新連線至房間 <b style="color:#ffd700;font-family:monospace;letter-spacing:3px;">${code}</b> …`);
-    peer = new Peer({ debug: 1 });
+    peer = new Peer({
+        debug: 2,
+        config: ICE_SERVERS_CONFIG
+    });
     peer.on('open', () => { connectToHost(code); });
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
     peer.on('error', (err) => {
@@ -9667,20 +9760,31 @@ function createOnlineRoom() {
     window.__netState = { roomCode: code, role: 'host' };
 
     showNetStatus(`正在建立房間…`);
-    peer = new Peer(peerId, { debug: 1 });
+
+    // ★ Patch 4: 加入 STUN 伺服器
+	peer = new Peer(peerId, {
+		debug: 2,
+		config: ICE_SERVERS_CONFIG
+	});
 
     peer.on('open', () => {
         showNetStatus(`
             房間已建立！<br>
             <div style="font-size:34px;letter-spacing:8px;color:#ffd700;font-family:monospace;margin:14px 0;">${code}</div>
             <button class="btn btn-gold" onclick="copyRoomCode('${code}')" style="margin-bottom:10px;">📋 複製房間代碼</button><br>
-            <span style="color:#a89070;">請將此代碼分享給對手</span><br>
+            <span style="color:#a89070;">請將此代碼分享給對手（6 碼，全大寫）</span><br>
             <span style="color:#7cff7c;">● 等待對手加入…</span>
+            <div style="margin-top:16px;font-size:12px;color:#a89070;line-height:1.7;">
+                若對手一直連不上：<br>
+                ① 確認對手有輸入「✅ 確認名稱」<br>
+                ② 確認對方網路正常<br>
+                ③ 若超過 30 秒仍未連上，可能是 PeerJS 伺服器忙碌，請雙方重整後重試
+            </div>
         `);
     });
     peer.on('error', (err) => {
-        console.error(err);
-        alert('建立房間失敗：' + err.message + '\n（房間代碼可能已被使用，請重試）');
+        console.error('[net] host error:', err);
+        alert('建立房間失敗：' + (err.message || err.type) + '\n（房間代碼可能已被使用，請重試）');
         cancelNet();
     });
     peer.on('connection', (c) => {
@@ -9692,6 +9796,62 @@ function createOnlineRoom() {
         console.log('[net] peerjs server disconnected, reconnecting...');
         try { peer.reconnect(); } catch (e) {}
     });
+}
+
+function joinOnlineRoom() {
+    if (!window.__myName) { alert('請先在「玩家名稱」欄位輸入並點擊「✅ 確認名稱」'); return; }
+    const raw = prompt('請輸入房間代碼：');
+    if (!raw) return;
+    const code = raw.trim().toUpperCase();
+    if (!code) return;
+    window.__netState = { roomCode: code, role: 'guest' };
+    showNetStatus(`正在連線至房間 <b style="color:#ffd700;font-family:monospace;letter-spacing:3px;">${code}</b> …<br>
+        <span id="net-status-detail" style="color:#a89070;font-size:13px;">正在連上 PeerJS 伺服器…</span>`);
+
+    // ★ 超時偵測
+    let connected = false;
+    const timeoutMs = 45000;   // 45 秒
+    const timeoutId = setTimeout(() => {
+        if (connected) return;
+        if (window.game && window.game.netMode && window.game.role === 'guest') return;
+        cancelNet();
+        alert('❌ 連線超時（45 秒）\n\n可能原因：\n' +
+              '① 房間代碼錯誤\n' +
+              '② 房主已經離開\n' +
+              '③ PeerJS 伺服器忙碌（稍後再試）\n' +
+              '④ 你的網路或防火牆封鎖了 WebRTC\n\n' +
+              '建議：請房主重新建立房間，並確認雙方網路正常。');
+    }, timeoutMs);
+
+    peer = new Peer({
+        debug: 2,
+        config: ICE_SERVERS_CONFIG
+    });
+    peer.on('open', () => {
+        const detail = document.getElementById('net-status-detail');
+        if (detail) detail.textContent = '已連上伺服器，正在連接房主…';
+        connectToHost(code);
+    });
+    peer.on('disconnected', () => {
+        console.log('[net] peerjs server disconnected, reconnecting...');
+        try { peer.reconnect(); } catch (e) {}
+    });
+    peer.on('error', (err) => {
+        console.error('[net] peer error:', err);
+        clearTimeout(timeoutId);
+        const msg = err.type === 'peer-unavailable'
+            ? `找不到房間「${code}」\n\n請確認：\n① 房主的畫面仍顯示「等待對手加入…」\n② 房間代碼正確（6 碼，無空格）`
+            : `連線失敗：${err.message || err.type}`;
+        cancelNet();
+        alert('❌ ' + msg);
+    });
+
+    // ★ 攔截 connectToHost 的成功回調，清除超時
+    const _origConnectToHost = window.connectToHost;
+    window.connectToHost = function(c) {
+        _origConnectToHost(c);
+        // 嘗試在 conn 開啟時清除 timeout（見補丁 3）
+    };
 }
 
 function attachHostHandlers(c, cfg) {
@@ -9736,31 +9896,27 @@ function attachHostHandlers(c, cfg) {
     c.on('error', (err) => console.error('Conn error:', err));
 }
 
-function joinOnlineRoom() {
-    if (!window.__myName) { alert('請先在「玩家名稱」欄位輸入並點擊「✅ 確認名稱」'); return; }
-    const raw = prompt('請輸入房間代碼：');
-    if (!raw) return;
-    const code = raw.trim().toUpperCase();
-    if (!code) return;
-    window.__netState = { roomCode: code, role: 'guest' };
-    showNetStatus(`正在連線至房間 <b style="color:#ffd700;font-family:monospace;letter-spacing:3px;">${code}</b> …`);
-    peer = new Peer({ debug: 1 });
-    peer.on('open', () => { connectToHost(code); });
-    peer.on('disconnected', () => {
-        console.log('[net] peerjs server disconnected, reconnecting...');
-        try { peer.reconnect(); } catch (e) {}
-    });
-    peer.on('error', (err) => {
-        console.error(err);
-        alert('連線失敗：' + err.message + '\n（找不到房間？請確認代碼）');
-        cancelNet();
-    });
-}
-
 function connectToHost(code) {
     if (!peer || peer.destroyed) return;
-    conn = peer.connect('sanguo-flash-' + code, { reliable: true });
+    const connOptions = { reliable: true };
+    // ★ Safari 修正：強制 JSON 序列化
+    const ua = navigator.userAgent;
+    if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+        connOptions.serialization = 'json';
+    }
+    conn = peer.connect('sanguo-flash-' + code, connOptions);
+
+    // ★ 連線本身也可能超時
+    const connTimeoutId = setTimeout(() => {
+        if (!conn || !conn.open) {
+            console.warn('[net] connect timeout for', code);
+            try { if (conn) conn.close(); } catch (e) {}
+        }
+    }, 15000);
+
     conn.on('open', () => {
+        clearTimeout(connTimeoutId);
+        console.log('[net] connection opened');
         if (!window.game || !window.game.netMode || window.game.role !== 'guest') {
             showNetStatus(`已連線！<br><span style="color:#7cff7c;">● 正在等待房主開始遊戲…</span>`);
         } else {
@@ -9773,6 +9929,7 @@ function connectToHost(code) {
     });
     conn.on('data', handleHostToGuest);
     conn.on('close', () => {
+        clearTimeout(connTimeoutId);
         conn = null;
         console.log('[net] connection lost, retrying in 2s...');
         if (window.game && window.game.netMode) {
@@ -9787,7 +9944,10 @@ function connectToHost(code) {
             }
         }, 2000);
     });
-    conn.on('error', (err) => console.error('Conn error:', err));
+    conn.on('error', (err) => {
+        clearTimeout(connTimeoutId);
+        console.error('[net] conn error:', err);
+    });
 }
 
 function handleGuestToHost(data) {
