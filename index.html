@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三國風雲 — 卡牌對戰 v3.6</title>
+<title>三國風雲 — 卡牌對戰 v3.7</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -131,8 +131,18 @@ h1,h2,h3{color:#ffd700}
 .c-power{position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:#ffffff;font-size:15px;font-weight:bold;padding:1px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.35)}
 .c-art{position:absolute;right:4px;bottom:5px;font-size:32px;filter:drop-shadow(0 0 6px rgba(255,255,255,.25))}
 .c-fac{position:absolute;top:2px;right:2px;font-size:11px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.5);color:#ddd}
-.c-gen{position:absolute;left:2px;bottom:24px;background:linear-gradient(180deg,#b81818,#6a0808);color:#ffe066;font-size:10px;font-weight:bold;padding:1px 5px;border-radius:3px;border:1px solid #ff8080;box-shadow:0 0 6px rgba(255,80,80,.7);letter-spacing:1px}
-.c-tag{position:absolute;left:2px;bottom:42px;font-size:10px;padding:0 4px;border-radius:3px;background:rgba(128,0,255,.75);color:#fff}.card.sm .c-name{font-size:11px;top:19px;left:2px}
+/* ★ v3.7: 可背面進場的牌 — 上 1/6 灰色標記 */
+.c-ambush-strip{position:absolute;top:0;left:0;right:0;height:16.67%;background:linear-gradient(180deg,rgba(70,70,70,.72),rgba(70,70,70,.28));pointer-events:none;border-top-left-radius:5px;border-top-right-radius:5px}
+.card.sm .c-ambush-strip,.card.xs .c-ambush-strip{display:none}
+.c-gen{position:absolute;left:2px;bottom:24px;background:linear-gradient(180deg,#b81818,#6a0808);color:#ffe066;font-size:9px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid #ff8080;box-shadow:0 0 6px rgba(255,80,80,.7);letter-spacing:0;line-height:1.3;white-space:nowrap}
+.c-fanpan{position:absolute;left:2px;bottom:24px;background:linear-gradient(180deg,#d4a000,#8a6800);color:#000;font-size:9px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid #ffd700;box-shadow:0 0 6px rgba(255,215,0,.75);letter-spacing:0;line-height:1.3;white-space:nowrap}
+.c-fanpan{position:absolute;left:2px;bottom:24px;background:linear-gradient(180deg,#d4a000,#8a6800);color:#fff;font-size:9px;font-weight:bold;padding:1px 4px;border-radius:3px;border:1px solid #ffd700;box-shadow:0 0 6px rgba(255,215,0,.75);letter-spacing:0;line-height:1.3;white-space:nowrap}
+.c-lh{position:absolute;right:2px;bottom:68px;font-size:10px;font-weight:bold;padding:1px 5px;border-radius:3px;border:1px solid;letter-spacing:0;line-height:1.3;white-space:nowrap;color:#fff;z-index:3}
+.c-lh.lh3{background:linear-gradient(180deg,#22cc44,#0e8028);border-color:#66ff88;box-shadow:0 0 6px rgba(68,255,136,.7)}
+.c-lh.lh2{background:linear-gradient(180deg,#d4a000,#8a6800);border-color:#ffd700;box-shadow:0 0 6px rgba(255,215,0,.7)}
+.c-lh.lh1{background:linear-gradient(180deg,#e68a2e,#9a4a08);border-color:#ffb060;box-shadow:0 0 6px rgba(255,150,60,.7)}
+.c-lh.lh0{background:linear-gradient(180deg,#555,#222);border-color:#888;color:#bbb}
+.card.sm .c-lh,.card.xs .c-lh{font-size:8px;padding:0 3px;bottom:56px}
 .card.sm .c-name{font-size:12px;top:22px;left:2px}
 .card.sm .c-title{font-size:8px;top:22px;left:18px}
 .card.sm .c-cost,.card.sm .c-power{font-size:11px;padding:0 4px}
@@ -140,7 +150,7 @@ h1,h2,h3{color:#ffd700}
 .card.sm .c-fac{font-size:9px}
 .card.sm .c-tag{display:none}
 .card.sm .c-skills{font-size:10px;top:18px;max-width:50px;gap:1px}
-.card.sm .c-gen{font-size:8px;padding:0 3px;bottom:20px}
+.card.sm .c-gen,.card.sm .c-fanpan{font-size:7px;padding:0 3px;bottom:20px}
 .card.xs .c-name{font-size:10px;top:17px;left:1px}
 .card.xs .c-title{display:none}
 .card.xs .c-cost,.card.xs .c-power{font-size:9px;padding:0 3px}
@@ -2146,6 +2156,103 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* ★ 啟動時檢查 localStorage 空間，若快滿就自動清舊回放 */
+(function _autoCheckStorage() {
+    try {
+        // 嘗試寫入 100KB 測試資料，若失敗表示空間不足
+        const testKey = '__storage_test__';
+        const big = 'x'.repeat(100 * 1024);
+        localStorage.setItem(testKey, big);
+        localStorage.removeItem(testKey);
+    } catch (e) {
+        // 空間不足 → 清掉一半舊回放
+        try {
+            const arr = JSON.parse(localStorage.getItem('sanguo_logs') || '[]');
+            if (arr.length > 0) {
+                const kept = arr.slice(Math.floor(arr.length / 2));
+                localStorage.setItem('sanguo_logs', JSON.stringify(kept));
+                console.log(`[storage] 啟動時偵測空間不足，已清理回放至 ${kept.length} 筆`);
+            }
+        } catch (e2) {
+            // 連清理都失敗 → 乾脆清空回放
+            try { localStorage.removeItem('sanguo_logs'); } catch (e3) {}
+        }
+    }
+})();
+/* ============ ★ AI vs AI 對戰場次計數 ============ */
+const AI_BATTLE_COUNT_KEY = 'sanguo_aiBattleCount';
+function getAiBattleCount() {
+    try { return parseInt(localStorage.getItem(AI_BATTLE_COUNT_KEY) || '0', 10) || 0; }
+    catch (e) { return 0; }
+}
+function incrementAiBattleCount() {
+    try {
+        const n = getAiBattleCount() + 1;
+        localStorage.setItem(AI_BATTLE_COUNT_KEY, String(n));
+        return n;
+    } catch (e) { return 0; }
+}
+function resetAiBattleCount() {
+    try { localStorage.removeItem(AI_BATTLE_COUNT_KEY); } catch (e) {}
+}
+
+/* ★ 匯出背景 AI 累積的對戰 JSON（一次下載一個大檔案） */
+function exportAiBatchReplays() {
+    const batch = window.__aiBatchReplays || [];
+    if (batch.length === 0) {
+        alert('目前沒有累積的 AI 對戰資料\n（要先啟動背景 AI 對戰並跑完至少一場）');
+        return;
+    }
+    const json = JSON.stringify({
+        _meta: {
+            exportedAt: new Date().toISOString(),
+            totalGames: batch.length,
+            description: 'AI vs AI 批次對戰記錄（用於 AI 訓練）'
+        },
+        games: batch
+    }, null, 2);
+    const sizeMB = (json.length / 1024 / 1024).toFixed(1);
+    if (!confirm(`即將匯出 ${batch.length} 場對戰（約 ${sizeMB} MB），確定嗎？`)) return;
+
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `sanguo-ai-batch-${batch.length}games-${ts}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ★ 清空批次（例如匯出後想重新累積） */
+function clearAiBatchReplays() {
+    if (!confirm('確定清空記憶體中累積的 AI 對戰資料？（不影響卡牌勝率統計）')) return;
+    window.__aiBatchReplays = [];
+    showSetup();
+}
+
+/* ★ 讓批次計數每秒更新（背景跑 AI 時） */
+let _aiBattleCountTimer = null;
+function _startAiBattleCountUpdater() {
+    if (_aiBattleCountTimer) return;
+    _aiBattleCountTimer = setInterval(() => {
+        const el = document.getElementById('ai-battle-count');
+        if (!el) {
+            // 計數元素消失了（換頁或開始遊戲）→ 停止定時器
+            clearInterval(_aiBattleCountTimer);
+            _aiBattleCountTimer = null;
+            return;
+        }
+        el.textContent = getAiBattleCount();
+
+        // ★ 同步更新「匯出批次」按鈕的數字
+        const batchBtn = document.getElementById('ai-batch-export-btn');
+        if (batchBtn) {
+            const n = (window.__aiBatchReplays || []).length;
+            batchBtn.textContent = `📦 匯出批次 (${n})`;
+        }
+    }, 1000);
+}
 /* ============ Safari-safe storage (Private Browsing throws on setItem) ============ */
 const safeStore = {
     get(key, dflt = null) {
@@ -2175,15 +2282,65 @@ function loadCardStats() {
         const raw = localStorage.getItem(CARD_STATS_KEY);
         if (!raw) return { ai: {}, player: {} };
         const parsed = JSON.parse(raw);
-        return { ai: parsed.ai || {}, player: parsed.player || {} };
+        const out = { ai: {}, player: {} };
+        // ★ v3.8: 遷移 — 舊格式（頂層是 cardId）→ 全部歸入「all」
+        const MODE_KEYS = ['1v1','1v1v1','2v2','1v1v1v1','all'];
+        const looksNewFormat = (bucket) => {
+            if (!bucket || typeof bucket !== 'object') return true;
+            const keys = Object.keys(bucket);
+            if (keys.length === 0) return true;
+            return keys.some(k => MODE_KEYS.includes(k));
+        };
+        for (const bucket of ['ai', 'player']) {
+            const src = parsed[bucket] || {};
+            out[bucket] = looksNewFormat(src) ? src : { all: src };
+        }
+        return out;
     } catch (e) { return { ai: {}, player: {} }; }
 }
 function saveCardStats(stats) {
-    try { localStorage.setItem(CARD_STATS_KEY, JSON.stringify(stats)); }
-    catch (e) { console.warn('saveCardStats failed:', e); }
+    const json = JSON.stringify(stats);
+    try {
+        localStorage.setItem(CARD_STATS_KEY, json);
+    } catch (e) {
+        console.warn('saveCardStats failed:', e);
+        // ★ 空間不足 → 自動清理最舊的回放記錄再重試
+        if (e.name === 'QuotaExceededError' || String(e.message).includes('quota')) {
+            try {
+                let arr = JSON.parse(localStorage.getItem('sanguo_logs') || '[]');
+                if (arr.length > 0) {
+                    // 一次砍掉一半最舊的回放
+                    arr = arr.slice(Math.floor(arr.length / 2));
+                    localStorage.setItem('sanguo_logs', JSON.stringify(arr));
+                    // 重新嘗試寫入統計
+                    localStorage.setItem(CARD_STATS_KEY, json);
+                    console.log(`[storage] 已清理舊回放（剩 ${arr.length} 筆）並成功寫入統計`);
+                    return;
+                }
+                // 沒有回放可清 → 放棄本次寫入，避免連鎖錯誤
+                console.warn('[storage] 無回放可清理，跳過本次統計寫入');
+            } catch (e2) {
+                console.warn('[storage] 清理後仍失敗:', e2);
+            }
+        }
+    }
 }
 function clearCardStats() {
     try { localStorage.removeItem(CARD_STATS_KEY); } catch (e) {}
+}
+function getWinRateColor(pct) {
+    if (pct < 35) return '#8b0000';   // 深紅
+    if (pct < 38) return '#c62828';   // 紅
+    if (pct < 41) return '#e64a19';   // 紅橙
+    if (pct < 44) return '#f57c00';   // 橙
+    if (pct < 47) return '#ffa000';   // 琥珀
+    if (pct < 50) return '#ffd600';   // 黃
+    if (pct < 53) return '#c6e11c';   // 黃綠
+    if (pct < 56) return '#aed581';   // 淺綠
+    if (pct < 59) return '#9ccc65';   // 淡綠
+    if (pct < 62) return '#66bb6a';   // 綠
+    if (pct < 65) return '#43a047';   // 中綠
+    return '#2e7d32';                 // 深綠
 }
 /* ============ 全域 UI 縮放 ============ */
 function getUIScale() {
@@ -2339,7 +2496,15 @@ const FACTION_INFO = {
 };
 const FACTION_ORDER = ['shu','wei','wu','qun'];
 const LOCKED_SKILLS = ['疑兵','反骨','力竭','伏兵','驍勇','不屈','剛烈','堅守','督戰','鶴翼','腹鱗'];
-const WIN_TRIGGER_SKILLS = ['鐵騎','劫糧','奪銳','締盟'];
+/* ★ v3.7 preend 重製：只有這些「陣地技能」卡片可以在結算前階段打出 */
+const PREEND_SKILLS = ['奇襲','奇謀','奔襲'];
+/* ★ v3.7: 馬岱 / 徐榮 沒有奇襲類技能，但特許在結算前以「埋伏」方式打出；
+   其餘伏兵系列（伏兵a~d、董卓、李傕、李儒、潘璋…）維持不可。
+   這兩張只有 onFlip 效果，正面打出等同白板 → 結算前一律背面進場。 */
+const PREEND_CARD_IDS = ['madai','xurong'];
+/* ★ v3.7: 徐榮【伏兵】取得與馬岱【伏擊】相同的「每回合開始前翻開」時機 */
+const PRE_TURN_FLIP_IDS = ['xurong'];
+const WIN_TRIGGER_SKILLS = ['鐵騎','劫糧','潰銳','締盟'];
 const LOSE_TRIGGER_SKILLS = ['梟雄','辭親','遺計','巧變','反骨'];
 
 const CARD_DB = [
@@ -2352,31 +2517,26 @@ const CARD_DB = [
   onSettle(ctx){if(ctx.isLosing){ctx.drawCard(1);ctx.log(`${ctx.self.data.name}【辭親】：己方劣勢，抽 1 張牌`);}}
 },
 { id:'madai', cardId:'011', name:'馬岱', title:'深謀慮遠', faction:'shu', cost:1, power:1, emoji:'🎯', set:'vanilla', isAmbush:true,
-  skills:['伏擊','斬除'],
-  desc:'伏擊：可背面進場，每回合開始前、陣地或遊戲結算時翻開。\n斬除：翻開後，移除對陣1張1糧草敵軍；或使該最後的正面敵軍受到1戰力傷害並失去非鎖定技。',
+  skills:['伏兵','斬除'],
+  desc:'伏兵：可背面進場，陣地結算時翻開。\n斬除：可每回合開始前或陣地結算前翻開；翻開後，對方上一張正面打出的牌若糧草為1則移除之，否則該牌受到1戰力傷害並失去非鎖定技。',
   onFlip(ctx){
-      const fodder = ctx.enemyField.filter(c =>
-          !c.faceDown && c.data.cost === 1 &&
-          !ctx.game._isJianshouProtected(c, ctx.opponent, ctx.field)
-      );
-      if (fodder.length > 0) {
-          let best = fodder[0], bestV = ctx.game.cardThreatValue(best);
-          fodder.forEach(c => {
-              const v = ctx.game.cardThreatValue(c);
-              if (v > bestV) { best = c; bestV = v; }
-          });
-          ctx.game.flashRemove(best);
-          ctx.enemyField.splice(ctx.enemyField.indexOf(best), 1);
-          ctx.game.archive.push(best);
-          ctx.log(`${ctx.self.data.name}【斬除】：移除敵方 ${best.data.name}（1糧，威脅值 ${bestV}）`);
-          return;
-      }
       const target = ctx.game._validLastFaceUpEnemy(ctx.opponent, ctx.field);
       if (!target) return;
-      const dmg = ctx.game.applyDamage(target, 1, ctx.opponent, ctx.field, ctx.self);
-      const nonLocked=(target.data.skills||[]).filter(s=>!LOCKED_SKILLS.includes(s));
-      if(nonLocked.length && !target.silenced) target.silenced = true;
-      ctx.log(`${ctx.self.data.name}【斬除】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
+      if (target.data.cost === 1) {
+          if (ctx.game._isJianshouProtected(target, ctx.opponent, ctx.field)) {
+              ctx.log(`${ctx.self.data.name}【斬除】：目標受【堅守】保護，無法移除`);
+              return;
+          }
+          ctx.game.flashRemove(target);
+          ctx.enemyField.splice(ctx.enemyField.indexOf(target), 1);
+          ctx.game.archive.push(target);
+          ctx.log(`${ctx.self.data.name}【斬除】：移除敵方 ${target.data.name}（1糧）`);
+      } else {
+          const dmg = ctx.game.applyDamage(target, 1, ctx.opponent, ctx.field, ctx.self);
+          const nonLocked = (target.data.skills||[]).filter(s=>!LOCKED_SKILLS.includes(s));
+          if(nonLocked.length && !target.silenced) target.silenced = true;
+          ctx.log(`${ctx.self.data.name}【斬除】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
+      }
   }
 },
 { id:'liaohua', cardId:'012', name:'廖化', title:'萬年長青', faction:'shu', cost:1, power:2, emoji:'🏔️', set:'vanilla',
@@ -2396,7 +2556,7 @@ const CARD_DB = [
 },
 { id:'fazheng', cardId:'009', name:'法正', title:'蜀漢謀主', faction:'shu', cost:2, power:1, emoji:'🗺️', set:'vanilla',
   skills:['奇謀','建言'],
-  desc:'奇謀：可在已結算陣地打出。\n建言：進場時，同陣地正面友軍戰力+1（一次性，只對已在場友軍）。',
+  desc:'奇謀：回合中或陣地結算前皆可打出；陣地結算前可改打到已結算陣地。\n建言：進場時，同陣地正面友軍戰力+1（一次性，只對已在場友軍）。',
   onEnter(ctx){let n=0;ctx.myField.forEach(c=>{if(c!==ctx.self&&!c.faceDown){c.mod=(c.mod||0)+1;n++;}});if(n>0)ctx.log(`${ctx.self.data.name}【建言】：${n} 名友軍 +1 戰力`);}
 },
 { id:'liubei', cardId:'001', name:'劉備', title:'惟賢惟德', faction:'shu', cost:2, power:3, emoji:'👑', set:'vanilla',
@@ -2406,8 +2566,20 @@ const CARD_DB = [
 },
 { id:'huangzhong', cardId:'005', name:'黃忠', title:'老當益壯', faction:'shu', cost:2, power:3, emoji:'🏹', set:'vanilla',
   skills:['烈矢'],
-  desc:'烈矢：對陣敵軍正面進場時，對其造成1戰力傷害，限2次。',
-  onEnemyEnter(ctx){if(ctx.self.usesLeft===undefined)ctx.self.usesLeft=2;if(ctx.self.usesLeft<=0)return;ctx.self.usesLeft--;const d=ctx.game.applyDamage(ctx.target,1,ctx.opponent,ctx.field,ctx.self);ctx.log(`${ctx.self.data.name}【烈矢】：對 ${ctx.target.data.name} 造成${d}傷害（剩 ${ctx.self.usesLeft} 次）`);}
+  desc:'烈矢：對陣敵軍正面進場時，對其造成等於目前輪次的戰力傷害（最多 3）。若其戰力歸 0，自己戰力 +1。',
+  onEnemyEnter(ctx){
+      if (ctx.self._liehi_done === false) return;
+      const dmg = Math.min(3, ctx.game.round);
+      const before = ctx.game.getPower(ctx.target, ctx.opponent, ctx.field, false);
+      const d = ctx.game.applyDamage(ctx.target, dmg, ctx.opponent, ctx.field, ctx.self);
+      const after = ctx.game.getPower(ctx.target, ctx.opponent, ctx.field, false);
+      if (before > 0 && after === 0) {
+          ctx.self.mod = (ctx.self.mod || 0) + 1;
+          ctx.log(`${ctx.self.data.name}【烈矢】：對 ${ctx.target.data.name} 造成 ${d} 傷害並擊殺，+1 戰力`);
+      } else {
+          ctx.log(`${ctx.self.data.name}【烈矢】：對 ${ctx.target.data.name} 造成 ${d} 傷害`);
+      }
+  }
 },
 { id:'zhugeliang', cardId:'008', name:'諸葛亮', title:'臥龍', faction:'shu', cost:2, power:3, emoji:'🔮', set:'vanilla',
   skills:['觀星','空城'],
@@ -2466,29 +2638,12 @@ const CARD_DB = [
 },
 { id:'pangtong', cardId:'015', name:'龐統', title:'鳳雛', faction:'shu', cost:2, power:1, emoji:'🦅', set:'extended',
   skills:['連環','巧計'],
-  desc:'連環：進場時，自己獲得【準備】；若準備期間失去此技能，後續效果不觸發。下個己方回合開始時，對陣所有正面敵軍獲得【連環】。陣地結算時，若連環敵軍受到戰力傷害，其他連環敵軍受到最多為1的戰力傷害。\n巧計：陣地結算時，自己的最後戰力加所在陣地己方的有【疑兵】技能牌數。',
-  onEnter(ctx){
+        desc:'連環：進場時【準備】*。下個己方回合開始時，對陣所有正面敵軍獲得【連3】。連環敵軍受到【燃燒】或【傷害】時，對其他連環有連之敵軍傳播 1 點戰力流失（最大為其連數）並使連數 -1，連 0 時失效。\n巧計：陣地結算時，自己的最後戰力加所在陣地己方的有【疑兵】技能牌數。\n*【準備】期間失去此技能，技能效果不觸發。',
+	onEnter(ctx){
       if (ctx.self.activated || ctx.self.preparing) return;
       ctx.self.preparing = true;
       ctx.log(`${ctx.self.data.name}【連環】：進入準備狀態`);
   },
-  onSettle(ctx){
-      if (!ctx.self.activated) return;
-      const marked = ctx.enemyField.filter(c => c.lianhuan && !c.faceDown);
-      if (marked.length < 2) return;
-      const worst = marked.reduce((a,c)=>(a.mod||0)<(c.mod||0)?a:c, marked[0]);
-      const worstMod = Math.min(0, worst.mod||0);
-      if (worstMod >= 0) return;
-      const dmg = Math.min(1, Math.abs(worstMod));
-      let total = 0;
-      marked.forEach(c => {
-          if (c !== worst) total += ctx.game.applyDamage(c, dmg, ctx.opponent, ctx.field, null);
-      });
-      ctx.log(`${ctx.self.data.name}【連環】：${marked.length-1} 名連環敵軍受到連鎖傷害（合計 ${total}）`);
-      for (let pi = 0; pi < ctx.game.numPlayers; pi++)
-          for (let b = 0; b < ctx.game.fieldCount; b++)
-              ctx.game.players[pi].fields[b].forEach(x => x.lianhuan = false);
-  }
 },
 { id:'masu', cardId:'016', name:'馬謖', title:'言過其實', faction:'shu', cost:1, power:1, emoji:'📖', set:'extended',
   skills:['巧計','絕道'],
@@ -2584,13 +2739,29 @@ const CARD_DB = [
 },
 { id:'yujin', cardId:'112', name:'于禁', title:'威嚴毅重', faction:'wei', cost:2, power:3, emoji:'🔍', set:'vanilla',
   skills:['警戒'],
-  desc:'警戒：進場時，翻開對陣一張背面朝上的牌，使其失去技能並對其造成2戰力傷害。',
-  onEnter(ctx){const t=ctx.enemyField.find(c=>c.faceDown);if(!t)return;t.faceDown=false;t.fresh=true;t.silenced=true;const d=ctx.game.applyDamage(t,2,ctx.opponent,ctx.field,ctx.self);ctx.log(`${ctx.self.data.name}【警戒】：翻開 ${t.data.name}，沉默並造成${d}傷害`);}
+  desc:'警戒：進場時，移除對陣一張背面朝上的牌；陣地結算時，若自己從未受過傷害，戰力 +1。',
+  onEnter(ctx){
+      const t = ctx.enemyField.find(c => c.faceDown);
+      if (!t) return;
+      if (ctx.game._isJianshouProtected(t, ctx.opponent, ctx.field)) {
+          ctx.log(`${ctx.self.data.name}【警戒】：目標受【堅守】保護，無法移除`);
+          return;
+      }
+      ctx.enemyField.splice(ctx.enemyField.indexOf(t), 1);
+      ctx.game.archive.push(t);
+      ctx.log(`${ctx.self.data.name}【警戒】：移除對陣蓋牌 ${t.data.name}`);
+  },
+  onSettle(ctx){
+      if (!ctx.self._tookDamage) {
+          ctx.self.mod = (ctx.self.mod || 0) + 1;
+          ctx.log(`${ctx.self.data.name}【警戒】：未受傷，+1 戰力`);
+      }
+  }
 },
 { id:'zhanghe', cardId:'111', name:'張郃', title:'料敵機先', faction:'wei', cost:2, power:3, emoji:'🎺', set:'vanilla',
   skills:['巧變'],
-  desc:'巧變：若所在陣地結算後劣勢，移動至下一陣地。',
-  onSettle(ctx){if(ctx.isLosing&&ctx.field+1<ctx.game.fieldCount){const f=ctx.myField;f.splice(f.indexOf(ctx.self),1);ctx.game.players[ctx.owner].fields[ctx.field+1].push(ctx.self);ctx.log(`${ctx.self.data.name}【巧變】：移動至【${BATTLEFIELDS[ctx.field+1]}】`);}}
+  desc:'巧變：若所在陣地結算後劣勢，移動至下一陣地並獲得 +1 戰力（可連續累積）。',
+  onSettle(ctx){if(ctx.isLosing&&ctx.field+1<ctx.game.fieldCount){const f=ctx.myField;f.splice(f.indexOf(ctx.self),1);ctx.self.mod=(ctx.self.mod||0)+1;ctx.game.players[ctx.owner].fields[ctx.field+1].push(ctx.self);ctx.log(`${ctx.self.data.name}【巧變】：移動至【${BATTLEFIELDS[ctx.field+1]}】，戰力 +1`);}}
 },
 { id:'xuhuang', cardId:'110', name:'徐晃', title:'周亞夫之風', faction:'wei', cost:2, power:3, emoji:'⚒️', set:'vanilla',
   skills:['劫糧'],
@@ -2599,7 +2770,7 @@ const CARD_DB = [
 },
 { id:'xiahouyuan', cardId:'106', name:'夏侯淵', title:'風馳電掣', faction:'wei', cost:2, power:3, emoji:'⚡', set:'vanilla',
   skills:['奔襲'],
-  desc:'奔襲：可在相鄰的已結算陣地進場，並替換1正面非【上將】友軍至當前陣地。'
+  desc:'奔襲：回合中或陣地結算前皆可打出；陣地結算前可於相鄰的已結算陣地進場，並替換1張正面非【上將】友軍至當前陣地。'
 },
 { id:'simayi', cardId:'103', name:'司馬懿', title:'狼顧之相', faction:'wei', cost:2, power:4, emoji:'🦊', set:'vanilla',
   skills:['隱忍'],
@@ -2620,9 +2791,9 @@ const CARD_DB = [
   onSettle(ctx){if(ctx.game.firstPasser===ctx.opponent){ctx.self.mod=(ctx.self.mod||0)+2;ctx.log(`${ctx.self.data.name}【虎痴】：對手先放棄，+2 戰力`);}}
 },
 { id:'zhangliao', cardId:'109', name:'張遼', title:'襲敵不備', faction:'wei', cost:3, power:7, emoji:'🏇', set:'vanilla',
-  skills:['奪銳','止啼'], isGeneral:true,
-  desc:'奪銳：若所在陣地結算時己方優勢，則對手棄1張牌。\n止啼：對陣敵軍進場時失去技能。',
-  onSettle(ctx){if(ctx.isWinning&&ctx.game.players[ctx.opponent].hand.length>0){const i=Math.floor(ctx.game.rng()*ctx.game.players[ctx.opponent].hand.length);const c=ctx.game.players[ctx.opponent].hand.splice(i,1)[0];ctx.game.archive.push(c);ctx.log(`${ctx.self.data.name}【奪銳】：對手棄 1 張牌`);}},
+  skills:['潰銳','止啼'], isGeneral:true,
+  desc:'潰銳：若所在陣地結算時己方優勢，則對手棄1張牌。\n止啼：對陣敵軍進場時失去技能。',
+  onSettle(ctx){if(ctx.isWinning&&ctx.game.players[ctx.opponent].hand.length>0){const i=Math.floor(ctx.game.rng()*ctx.game.players[ctx.opponent].hand.length);const c=ctx.game.players[ctx.opponent].hand.splice(i,1)[0];ctx.game.archive.push(c);ctx.log(`${ctx.self.data.name}【潰銳】：對手棄 1 張牌`);}},
   onEnemyEnter(ctx){if(!ctx.target.silenced){ctx.target.silenced=true;ctx.log(`${ctx.self.data.name}【止啼】：${ctx.target.data.name} 失去技能`);}}
 },
 { id:'dianwei', cardId:'107', name:'典韋', title:'古之惡來', faction:'wei', cost:3, power:8, emoji:'🪓', set:'vanilla',
@@ -2723,9 +2894,16 @@ const CARD_DB = [
   skills:['護衛','鶴翼'],
   desc:'護衛：每場一次，同陣地友軍受到戰力傷害時，該傷害-1，自己代為承受1點。\n鶴翼：你的戰力至少為1。'
 },
-{ id:'caozhi', cardId:'122', name:'曹植', title:'才高八斗', faction:'wei', cost:1, power:2, emoji:'🍶', set:'extended',
+{ id:'caozhi', cardId:'122', name:'曹植', title:'才高八斗', faction:'wei', cost:1, power:1, emoji:'🍶', set:'extended',
   skills:['酒詩'],
-  desc:'酒詩：己方全場累計已打出7張牌後，己方出牌時可讓自己返回手牌並補回相應糧草，自己失去此技能。'
+  desc:'酒詩：進場時，同陣地最前正面友軍戰力 +1；己方全場累計已打出 7 張牌後，己方出牌時可讓自己返回手牌並補回相應糧草，自己失去此技能。',
+  onEnter(ctx){
+      const first = ctx.myField.find(c => c !== ctx.self && !c.faceDown);
+      if (first) {
+          first.mod = (first.mod || 0) + 1;
+          ctx.log(`${ctx.self.data.name}【酒詩】：${first.data.name} +1 戰力`);
+      }
+  }
 },
 { id:'caozhang', cardId:'123', name:'曹彰', title:'黃鬚兒', faction:'wei', cost:1, power:2, emoji:'🐎', set:'extended',
   skills:['將馳'], isGeneral:true,
@@ -2796,7 +2974,7 @@ const CARD_DB = [
 },
 { id:'luxun', cardId:'205', name:'陸遜', title:'虛己藏鋒', faction:'wu', cost:2, power:3, emoji:'🌿', set:'vanilla',
   skills:['謙遜','連營'],
-  desc:'謙遜：對陣每有一張戰力高於自己的正面敵軍，自己戰力+1。\n連營：每回合己方出牌時，可指定對陣一張牌【燃燒】至陣地結算，陸遜失去所有技能。'
+  desc:'謙遜：對陣每有一張戰力高於自己的正面敵軍，自己戰力+1。\n連營：每回合己方出牌時，可指定對陣一張牌【燃燒】至陣地結算，然後失去【連營】（保留【謙遜】）。此技能每場僅能使用一次。'
 },
 { id:'taishici', cardId:'207', name:'太史慈', title:'信義篤烈', faction:'wu', cost:2, power:3, emoji:'🎯', set:'vanilla',
   skills:['飛矢','驍勇'],
@@ -2819,8 +2997,8 @@ const CARD_DB = [
   onEnter(ctx){ctx.self.pendingDamageNext=false;}
 },
 { id:'ganning', cardId:'211', name:'甘寧', title:'錦帆游俠', faction:'wu', cost:3, power:6, emoji:'🔔', set:'vanilla',
-  skills:['奇襲','劫營'], isGeneral:true,
-  desc:'奇襲：若所在陣地結算時己方優勢，則對手棄1張牌。\n劫營：進場時，對手棄光手牌、摸等量少1張的牌並-1糧食，但陣地結算後對手糧食和牌+1。',
+  skills:['潰銳','劫營'], isGeneral:true,
+  desc:'潰銳：若所在陣地結算時己方優勢，則對手棄1張牌。\n劫營：進場時，對手棄光手牌、摸等量少1張的牌並-1糧食，但陣地結算後對手糧食和牌+1。',
   onEnter(ctx){
       const foe = ctx.game.players[ctx.opponent];
       const n = foe.hand.length;
@@ -2842,12 +3020,12 @@ const CARD_DB = [
           ctx.game.drawTo(ctx.opponent, 1);
           ctx.log(`${ctx.self.data.name}【劫營】：對手返還 +1 糧 +1 牌`);
       }
-      // 奇襲：結算時優勢 → 對手棄1張
+      // 潰銳：結算時優勢 → 對手棄1張
       if (ctx.isWinning && ctx.game.players[ctx.opponent].hand.length > 0) {
           const i = Math.floor(ctx.game.rng() * ctx.game.players[ctx.opponent].hand.length);
           const c = ctx.game.players[ctx.opponent].hand.splice(i, 1)[0];
           ctx.game.archive.push(c);
-          ctx.log(`${ctx.self.data.name}【奇襲】：對手棄 1 張牌`);
+          ctx.log(`${ctx.self.data.name}【潰銳】：對手棄 1 張牌`);
       }
   }
 },
@@ -2931,28 +3109,93 @@ const CARD_DB = [
 },
 { id:'sunjian', cardId:'221', name:'孫堅', title:'江東之虎', faction:'wu', cost:3, power:6, emoji:'🐯', set:'extended',
   skills:['英魂'], isGeneral:true,
-  desc:'英魂：進場時，同陣地戰力比自己少的正面友軍戰力+1。',
+    desc:'英魂：進場時【準備】*。下個己方回合開始時或對方放棄跟牌，移除對陣一張戰力比自己小 4 或更多的非【上將】正面牌。\n*【準備】期間失去此技能，技能效果不觸發。',
+	onEnter(ctx){
+      if (ctx.self.activated || ctx.self.preparing) return;
+      ctx.self.preparing = true;
+      ctx.log(`${ctx.self.data.name}【英魂】：進入準備狀態`);
+  }
+},
+{ id:'sunshangxiang', cardId:'222', name:'孫尚香', title:'弓腰姬', faction:'wu', cost:2, power:3, emoji:'🏹', set:'extended',
+  skills:['聯姻','梟姬'],
+    desc:'聯姻：進場時，選擇同陣地與一張正面男性友軍一起獲得【連理】狀態，自己失去此技能。\n梟姬：若所在陣地結算後劣勢，自己返回手牌並補回相應糧草，同時因自己離場而解除【連理】。\n（【連理】：同陣地同時存在兩張【連理】牌時，兩者各 +1 戰力。）',
+	onEnter(ctx){
+      if (ctx.game._inExtraPlay) return;
+      const candidates = ctx.myField.filter(c =>
+          c !== ctx.self && !c.faceDown && c.data.male);
+      if (candidates.length === 0) return;
+        if (ctx.game.isAI(ctx.owner)) {
+            let best = candidates[0], bestV = ctx.game.cardThreatValue(best);
+            candidates.forEach(c => { const v = ctx.game.cardThreatValue(c); if (v > bestV) { best = c; bestV = v; } });
+            best.wedded = true;
+            ctx.self.wedded = true;          // ★ 孫尚香自己也獲得連理
+            ctx.self.silenced = true;
+            ctx.log(`${ctx.self.data.name}【聯姻】：與 ${best.data.name} 締結連理`);
+            return;
+        }
+      ctx.game.liangyuan = {
+          pi: ctx.owner, selfUid: ctx.self.uid, bi: ctx.field,
+          candidates: candidates.map(c => c.uid), sel: null
+      };
+  },
+  onSettle(ctx){
+      if (ctx.isLosing) {
+          const f = ctx.myField;
+          f.splice(f.indexOf(ctx.self), 1);
+          ctx.self.mod = 0;
+          ctx.self.silenced = false;
+          ctx.self.wedded = false;
+          ctx.game.players[ctx.owner].food = Math.min(ctx.game.cfg.maxFood, ctx.game.players[ctx.owner].food + ctx.self.data.cost);
+          ctx.game.players[ctx.owner].hand.push(ctx.self);
+          ctx.log(`${ctx.self.data.name}【梟姬】：返回手牌並補回 ${ctx.self.data.cost} 糧（連理解除）`);
+      }
+  }
+},
+{ id:'lukang', cardId:'223', name:'陸抗', title:'社稷楨幹', faction:'wu', cost:2, power:3, emoji:'🏛️', set:'extended',
+  skills:['繼承'],
+  desc:'繼承：進場時，選擇同陣地一張正面友軍，自己獲得該友軍目前享受的所有額外戰力加成（不含基本戰力與 mod）。',
   onEnter(ctx){
-      const game = ctx.game;
-      // 計算孫堅進場後的最終戰力（含所有被動加成）
-      const myPower = game.getPower(ctx.self, ctx.owner, ctx.field, false);
-      const toBuff = [];
-      ctx.myField.forEach(c => {
-          if (c === ctx.self || c.faceDown) return;
-          const cP = game.getPower(c, ctx.owner, ctx.field, false);
-          if (cP < myPower) toBuff.push(c);
+      if (ctx.game._inExtraPlay) return;
+      const candidates = ctx.myField.filter(c => c !== ctx.self && !c.faceDown);
+      if (candidates.length === 0) return;
+      // 為每張候選算 expectedBonus（給 UI 顯示用）
+      candidates.forEach(c => {
+          c._expectedBonus = ctx.game._incomingBonus(c, ctx.owner, ctx.field);
       });
-      if (toBuff.length === 0) {
-          ctx.log(`${ctx.self.data.name}【英魂】：無友軍戰力低於自己（${myPower}），略過`);
+      if (ctx.game.isAI(ctx.owner)) {
+          let best = candidates[0], bestB = best._expectedBonus || 0;
+          candidates.forEach(c => { const b = c._expectedBonus || 0; if (b > bestB) { best = c; bestB = b; } });
+          if (bestB > 0) {
+              ctx.self.mod = (ctx.self.mod || 0) + bestB;
+              ctx.log(`${ctx.self.data.name}【繼承】：從 ${best.data.name} 繼承 +${bestB} 戰力`);
+          }
           return;
       }
-      toBuff.forEach(c => { c.mod = (c.mod || 0) + 1; });
-      ctx.log(`${ctx.self.data.name}【英魂】：${toBuff.map(c => c.data.name).join('、')} 各 +1 戰力`);
-      ctx.game.recordEvent('yinghun', {
-          player: ctx.owner,
-          myPower: myPower,
-          targets: toBuff.map(c => c.data.id)
-      });
+      ctx.game.lukang = {
+          pi: ctx.owner, selfUid: ctx.self.uid, bi: ctx.field,
+          candidates: candidates.map(c => c.uid), sel: null
+      };
+      ctx.game.render();
+  }
+},
+{ id:'sunhao', cardId:'224', name:'孫皓', title:'暴君之相', faction:'wu', cost:2, power:2, emoji:'👺', set:'extended',
+  skills:['吳王','苛政'],
+  desc:'吳王：同陣地吳國友軍戰力+1。\n苛政：進場時，指定 1～3。至本陣地結算前，己方與對陣於此陣地正面出牌時，其糧草必須等於指定數字；否則只能宣告放棄跟牌。',
+  onEnter(ctx){
+      if (ctx.game._inExtraPlay) return;
+      // AI 自動選：對手低費牌多 → 選 1；對手缺低費牌 → 選 3
+      if (ctx.game.isAI(ctx.owner)) {
+          const oppHand = ctx.game.players[ctx.opponent].hand;
+          const cheapCount = oppHand.filter(c => c.data.cost <= 1).length;
+          const pick = cheapCount >= 3 ? 1 : (cheapCount === 0 ? 3 : 2);
+          ctx.game.kezheng = { pi: ctx.owner, bi: ctx.field, cost: pick };
+          ctx.log(`${ctx.self.data.name}【苛政】：指定糧草 ${pick}`);
+          return;
+      }
+      ctx.game.sunhao = {
+          pi: ctx.owner, selfUid: ctx.self.uid, bi: ctx.field
+      };
+      ctx.game.render();
   }
 },
 /* ============ 群 原版 301-303 ============ */
@@ -3162,30 +3405,25 @@ const CARD_DB = [
 },
 { id:'xurong', cardId:'520', name:'徐榮', title:'汴水悍將', faction:'qun', cost:2, power:4, emoji:'🗡️', set:'extended',
   skills:['伏兵','斬除'], isAmbush:true,
-  desc:'伏兵：可背面進場，陣地結算時翻開。\n斬除：翻開後，移除對陣1張1糧草敵軍；或使該最後的正面敵軍受到1戰力傷害並失去非鎖定技。',
+  desc:'伏兵：可背面進場，陣地結算時翻開。\n斬除：可每回合開始前或陣地結算前翻開；翻開後，對方上一張正面打出的牌若糧草為1則移除之，否則該牌受到1戰力傷害並失去非鎖定技。',
   onFlip(ctx){
-      const fodder = ctx.enemyField.filter(c =>
-          !c.faceDown && c.data.cost === 1 &&
-          !ctx.game._isJianshouProtected(c, ctx.opponent, ctx.field)
-      );
-      if (fodder.length > 0) {
-          let best = fodder[0], bestV = ctx.game.cardThreatValue(best);
-          fodder.forEach(c => {
-              const v = ctx.game.cardThreatValue(c);
-              if (v > bestV) { best = c; bestV = v; }
-          });
-          ctx.game.flashRemove(best);
-          ctx.enemyField.splice(ctx.enemyField.indexOf(best), 1);
-          ctx.game.archive.push(best);
-          ctx.log(`${ctx.self.data.name}【斬除】：移除敵方 ${best.data.name}（1糧，威脅值 ${bestV}）`);
-          return;
-      }
       const target = ctx.game._validLastFaceUpEnemy(ctx.opponent, ctx.field);
       if (!target) return;
-      const dmg = ctx.game.applyDamage(target, 1, ctx.opponent, ctx.field, ctx.self);
-      const nonLocked=(target.data.skills||[]).filter(s=>!LOCKED_SKILLS.includes(s));
-      if(nonLocked.length && !target.silenced) target.silenced = true;
-      ctx.log(`${ctx.self.data.name}【斬除】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
+      if (target.data.cost === 1) {
+          if (ctx.game._isJianshouProtected(target, ctx.opponent, ctx.field)) {
+              ctx.log(`${ctx.self.data.name}【斬除】：目標受【堅守】保護，無法移除`);
+              return;
+          }
+          ctx.game.flashRemove(target);
+          ctx.enemyField.splice(ctx.enemyField.indexOf(target), 1);
+          ctx.game.archive.push(target);
+          ctx.log(`${ctx.self.data.name}【斬除】：移除敵方 ${target.data.name}（1糧）`);
+      } else {
+          const dmg = ctx.game.applyDamage(target, 1, ctx.opponent, ctx.field, ctx.self);
+          const nonLocked = (target.data.skills||[]).filter(s=>!LOCKED_SKILLS.includes(s));
+          if(nonLocked.length && !target.silenced) target.silenced = true;
+          ctx.log(`${ctx.self.data.name}【斬除】：對 ${target.data.name} 造成${dmg}傷害${nonLocked.length?'並沉默':''}`);
+      }
   }
 },
 { id:'dongzhuo', cardId:'521', name:'董卓', title:'廢立權臣', faction:'qun', cost:3, power:6, emoji:'👹', set:'extended',
@@ -3218,7 +3456,7 @@ const CARD_DB = [
 ];
 
 const MALE_IDS = ['liubei','guanyu','zhangfei','zhaoyun','machao','huangzhong','weiyan','liaohua','madai','fazheng','xushu','caocao','xiahoudun','xuchu','dianwei','zhangliao','zhanghe','xuhuang','yujin','guojia','simayi','caoren','xiahouyuan','sunquan','zhouyu','lumeng','taishici','chengpu','lusu','ganning','sunce','panzhang','zhoutai','huanggai','luxun','lvbu','huaxiong',
-'guanxing','zhangbao','zhangbaogong','pangtong','masu','menghuo','sunqian','guanping','liyan','mengda','jiangwei','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru','handang','xusheng','lingtong','dingfeng','zhangzhao','zhanghong','sunjian'];
+'guanxing','zhangbao','pangtong','masu','zhugeliang','menghuo','sunqian','guanping','liyan','mengda','jiangwei','liushan','lejin','lidian','zhonghui','dengai','chengyu','jiaxu','xunyu','xunyou','caohong','caozhi','caozhang','caopi','lijue','xurong','dongzhuo','liru','zhangjiao','zhangbaogong','zhangliang','handang','xusheng','lingtong','dingfeng','zhangzhao','zhanghong','sunjian'];
 CARD_DB.forEach(c => { c.male = MALE_IDS.includes(c.id); });
 
 const CARD_NAME_MAP = {};
@@ -3229,17 +3467,17 @@ CARD_DB.forEach(d => {
 function cardName(id){ return CARD_NAME_MAP[id] || id || '?'; }
 
 const RULES_OVERVIEW = [
-    '👥 <b>兩人對戰</b>：分為藍方與紅方，共三處戰場（中原、西川、東吳）。',
-    '🏆 <b>勝利條件</b>：率先贏得 <b>兩輪</b>者獲得最終勝利。',
-    '🌾 <b>資源系統</b>：打出卡牌需消耗「糧草」（卡片左上數字）。每輪開始補滿，上限 12。',
+    '👥 <b>四種對戰模式</b>：1v1、1v1v1（3 人混戰）、2v2（組隊）、1v1v1v1（4 人混戰），依模式使用 3～5 處戰場。',
+    '🏆 <b>勝利條件</b>：率先贏得 <b>兩輪</b>者（2v2 則為整隊共享勝場）獲得最終勝利。',
+    '🌾 <b>資源系統</b>：打出卡牌需消耗「糧草」（卡片左上數字）。初始 7 糧，每輪結束補 6 糧（勝方額外 +1），上限 12。',
     '🎴 <b>兩種進場方式</b>：<b>正面</b>（正常出牌，立即扣糧，立即觸發技能）或 <b>背面／埋伏</b>（延後扣糧，結算時才翻開）。',
-    '🪙 <b>先手決定</b>：開局雙方各翻一張牌，戰力高者為該輪先手。<b>平手會重新翻牌</b>，直到分出勝負。',
+    '🪙 <b>先手決定</b>：開局各方各翻一張牌，戰力高者為該輪先手。<b>平手會重新翻牌</b>，直到分出勝負。',
     '🔄 <b>開局重抽</b>：先手方可選擇<b>重抽全部手牌</b>（棄置原手牌後補抽等量），也可直接保留。',
     '📥 <b>起始流程牌的去向</b>：決定先手的翻牌、平手重翻的舊牌、以及重抽丟棄的手牌，預設<b>進入棄牌堆</b>；可在「遊戲設定」中改為<b>塞入牌庫底</b>。',
-    '⚔️ <b>輪流出牌</b>：雙方輪流打出一張牌或宣告放棄，直到兩人都不想再出牌。',
-    '📊 <b>結算比較</b>：該輪戰場上兩方的<b>總戰力</b>相比，高者獲勝。',
+    '⚔️ <b>輪流出牌</b>：各方輪流打出一張牌或宣告放棄，直到都不想再出牌。',
+    '📊 <b>結算比較</b>：該輪戰場上各方的<b>總戰力</b>相比，高者獲勝（2v2 模式以隊伍合計計算）。',
     '⚖️ <b>結算平手</b>：戰力相同時，由該輪的<b>先手方</b>獲勝。',
-    '🔄 <b>補給與換場</b>：每輪結束雙方補糧，勝方額外 +1；下一輪換到新的戰場。',
+    '🔄 <b>補給與換場</b>：每輪結束各方補糧，勝方額外 +1；下一輪換到新的戰場，由勝方的下一位玩家先手。',
     '🧠 <b>技能與埋伏</b>：每張牌都有獨特技能，有些進場就觸發，有些在結算時、或反應對手出牌時才發動。',
     '🎯 <b>策略核心</b>：何時正面、何時埋伏、何時放棄、何時保留糧草，都是決勝關鍵。'
 ];
@@ -3270,9 +3508,12 @@ const RULES_DETAILED = [
     {
         title: '③ 結算前階段（preend）',
         lines: [
-            '後放棄者先有機會在<b>結算前</b>再出一張牌，之後換先放棄者。',
-            '這是「<b>奇襲</b>」「<b>奇謀</b>」等技能卡片的最佳時機。',
-            '兩人皆放棄 → 進入結算階段。',
+            '由本輪<b>先手方</b>先行動，之後輪流出牌（與出牌階段相同）。',
+            '結算前<b>只能打出</b>擁有「<b>奇襲</b>」「<b>奇謀</b>」「<b>奔襲</b>」技能的卡片（魏延、鄧艾、法正、夏侯淵），或以<b>埋伏</b>方式打出<b>馬岱</b>、<b>徐榮</b>。',
+            '其中，卡牌帶有「奇謀／奇襲／奔襲」技能者，卡面左下角會標示【<b>逆轉</b>】標籤。',
+            '一旦放棄，就退出結算前；其他玩家仍可繼續出牌，直到也放棄。',
+            '上將在結算前打出後，同樣<b>自動放棄</b>。',
+            '全部玩家皆放棄 → <b>先重新結算所有過去陣地</b>（第 1 輪至上一輪）：若有人因翻轉達到 2 勝，立即獲勝；否則才結算當前陣地。',
         ]
     },
     {
@@ -3324,7 +3565,7 @@ const RULES_DETAILED = [
         title: '⑨ 埋伏與翻面',
         lines: [
             '背面進場的牌為「蓋牌」，戰力視為 0 直到翻開。',
-            '結算時自動翻開。部分技能（<b>冷箭</b>、<b>伏擊</b>）可在回合開始前搶先翻開。',
+            '結算時自動翻開。部分技能（<b>冷箭</b>、<b>伏擊</b>）與<b>徐榮</b>可在回合開始前搶先翻開。',
             '「疑兵」類卡片強制背面進場，結算時翻開並移除自己（除非有黃巾等例外）。',
             '「于禁」等技能可直接翻開對手蓋牌並沉默。',
         ]
@@ -3345,13 +3586,18 @@ const DEFINITIONS = [
     { term:'正面進場 / 背面進場', def:'卡片可以正面朝上（正常）或背面朝上（埋伏）的方式進入戰場。' },
     { term:'蓋牌 / 翻面', def:'背面朝上的牌為「蓋牌」。蓋牌在陣地結算時翻開。' },
     { term:'上將', def:'特殊稱號。出牌並結算完所有進場技能後，自動放棄跟牌。' },
+    { term:'逆轉（奇襲類卡）', def:'擁有【奇襲】、【奇謀】、【奔襲】技能的卡片，卡面左下角標示【逆轉】。它們可在結算前打出、甚至打至已結算的過去陣地以翻盤。' },
+    { term:'伏擊', def:'某些卡（如馬岱、徐榮）可在結算前以背面埋伏方式打出，並於每回合開始前或陣地結算前搶先翻開，觸發【斬除】效果。' },
+    { term:'連理', def:'孫尚香【聯姻】選擇的男性友軍與孫尚香本身各獲得【連理】。當同陣地存在兩張【連理】牌時，兩者各 +1 戰力；若其中一方離場（例如孫尚香【梟姬】返回手牌），【連理】即失效。' },
+    { term:'苛政', def:'孫皓【苛政】指定糧草 1～3。至本陣地結算前，雙方於此陣地正面出牌時，糧草必須等於指定數字，否則只能放棄跟牌。' },
+    { term:'潰銳', def:'結算時若己方優勢，對手棄 1 張手牌。由甘寧、張遼持有。' },
     { term:'移除', def:'進入棄牌堆。' },
-    { term:'陣地結算時', def:'當前戰場結算階段，雙方總戰力比較前後的時機。' },
-    { term:'嘲諷', def:'對手下回合必須在對陣正面打出一張牌，否則只能放棄跟牌。' },
-    { term:'燃燒', def:'陣地結算前，每當對手出牌，燃燒敵軍受到1燃燒傷害。' },
-    { term:'糧草', def:'打出卡牌所需的資源。每輪開始與結束時會補充，有上限。' },
-    { term:'平局 → 先手方勝', def:'結算時雙方戰力相等，由該輪先手方獲得本輪勝利。' },
-    { term:'王類光環（蜀王 / 魏王 / 吳王）', def:'在場時，同陣地對應陣營的友軍戰力 +1。' },
+    { term:'陣地結算時', def:'當前戰場結算階段，各方總戰力比較前後的時機。' },
+    { term:'嘲諷', def:'對手下回合必須在對陣正面打出一張牌，否則只能放棄跟牌。司馬懿【隱忍】可無視嘲諷。' },
+    { term:'燃燒', def:'陣地結算前，每當對手出牌，燃燒敵軍損失 1 點戰力（被動流失，非傷害，不受督戰／護衛／堅守影響）。' },
+    { term:'糧草', def:'打出卡牌所需的資源。初始 7 糧，每輪結束補 6 糧（勝方額外 +1），上限 12。' },
+    { term:'平局 → 先手方勝', def:'結算時各方戰力相等，由該輪先手方獲得本輪勝利。' },
+    { term:'王類光環（蜀王 / 魏王 / 吳王）', def:'在場時，同陣地對應陣營的友軍戰力 +1。黃蓋【詐降】能同時吃對陣的王類光環。' },
     { term:'觸發順序', def:'被動效果先於有特定時機的技能；同一時機時，行動方技能先於對方發動。' }
 ];
 
@@ -3419,11 +3665,11 @@ const FAQ_DB = {
             { q: '奇襲什麼時候可以使用？',
               a: '只有「<b>陣地結算前</b>」階段才能將魏延打出至<b>任一</b>陣地。一般出牌階段只能打到當前陣地。' },
             { q: '打到過去陣地時，該陣地的勝負會立即翻轉嗎？',
-              a: '<b>不會立即翻轉。</b>戰力會立即加總，該陣地顯示「待重新結算」提示，但<b>實際翻轉要等到本輪結束、且本輪沒有分出勝負之後</b>才執行。' },
+              a: '<b>會立即翻轉。</b>結算前結束後、結算當前陣地<b>之前</b>，系統會重新計算第 1 輪至上一輪的所有陣地勝負。若魏延使某過去陣地的勝方改變，該陣地立即翻轉，勝負數同步更新。' },
             { q: '所以打魏延到過去陣地，能馬上讓我變 1:1 嗎？',
-              a: '<b>不能。</b>舉例：<br>• 第 1 輪你輸 → 0:1<br>• 第 2 輪即將再輸，你在結算前把魏延打到第 1 輪的陣地<br>• 第 2 輪結算完 → 0:2<br>• 對手已達 2 勝 → <b>遊戲立刻結束，翻轉根本不會執行</b><br>「遠水不能救近火」：翻轉無法挽回已經定局的當輪敗場。' },
+              a: '<b>能！</b>舉例：<br>• 第 1 輪你輸 → 0:1<br>• 第 2 輪結算前，你把魏延打到第 1 輪的陣地<br>• 結算前結束 → 系統重算過去陣地 → 第 1 輪翻轉為你的勝利 → <b>1:1</b><br>• 之後才結算當前第 2 輪陣地，決定誰先達 2 勝。<br>「遠水能救近火」：翻轉在當前結算之前執行，可以挽回劣勢。' },
             { q: '翻轉可以阻止對手獲勝嗎？',
-              a: '<b>不能。</b>系統在每輪結算時，會<b>先</b>檢查是否有人達到 2 勝——若達到，遊戲立刻結束，過去陣地的翻轉<b>不會執行</b>。<br>翻轉只在「本輪結束後仍未分出勝負」時才生效；此時若翻轉把某人推到 2 勝，會立即以翻轉結果判定勝負。' },
+              a: '<b>可以。</b>過去陣地的翻轉在當前陣地結算<b>之前</b>執行：<br>• 若翻轉後對手已達 2 勝 → 對手立即獲勝（當前陣地不再結算）<br>• 若翻轉後你已達 2 勝 → 你立即獲勝（當前陣地不再結算）<br>• 否則才結算當前陣地，再判定勝負。<br>對手不能靠「搶先結算當前陣地」獲勝——翻轉永遠優先檢查。' },
             { q: '打魏延到「未來陣地」有什麼用？',
               a: '用處<b>很小</b>。<br>未來陣地<b>不會提前結算</b>——魏延只是靜靜躺在該陣地，等那輪真的開打時才參戰。他既不能影響當前陣地，也不能翻盤任何已定結果。<br>優先順序：<b>過去 &gt; 當前 &gt; 未來</b>。' },
             { q: '打魏延到「當前陣地」呢？',
@@ -3445,9 +3691,21 @@ const FAQ_DB = {
         title: '龐統 · 連環',
         qa: [
             { q: '連環什麼時候觸發？',
-              a: '兩階段：<br>① 進場後進入<b>「準備」</b>狀態（此時無效果）；<br>② 下個己方回合開始時，對陣所有正面敵軍獲得<b>【連環】標記</b>。' },
-            { q: '連環的傷害怎麼算？',
-              a: '結算時，若任一連環敵軍受到戰力傷害，<b>其他連環敵軍受到同等傷害（每張最多 1）</b>。' },
+              a: '兩階段：<br>① 進場後進入<b>「準備」</b>狀態（此時無效果）；<br>② 下個己方回合開始時，對陣所有正面敵軍獲得<b>【連環】標記</b>並標上「連 3」。' },
+            { q: '連環什麼時候傳播？輸出是傷害嗎？',
+              a: '<b>只有【燃燒】和【傷害】觸發傳播。</b><br>常見來源：<br>• <b>燃燒</b>：火攻、火船、連營<br>• <b>傷害</b>：威嚇、烈矢、飛矢、霸王、烈刃、剛烈反傷<br><br>純「戰力流失」（如驅虎 -1、權謀 -1 光環、力竭）<b>不會觸發</b>。<br><br>傳播的<b>輸出永遠是「戰力流失」</b>（不是傷害）。因此：<br>• 不受督戰／護衛影響（它們只擋傷害）<br>• 不觸發剛烈（剛烈只反彈傷害）<br>• 但若該陣地有【堅守】且劣勢 → <b>傳播被完全擋下</b>' },
+            { q: '「連 3」是什麼意思？',
+              a: '每張連環牌初始標記為 <b>連 3</b>，代表最多能被傳播 <b>3 次</b>。<br>每當被傳播（接收）時，連 -1：<br>• 連 3 → 連 2 → 連 1 → 連 0<br>連 0 時<b>完全失效</b>（不再接收傳播、也不作為來源）。<br><br>UI 顏色：<span style="color:#66ff88;">綠</span>（連3）→ <span style="color:#ffd700;">黃</span>（連2）→ <span style="color:#ffb060;">橘</span>（連1）→ <span style="color:#888;">灰</span>（連0）' },
+            { q: '作為「來源」會消耗連點嗎？',
+              a: '<b>不會。</b>「連」點數只有作為「接收者」時才 -1；來源觸發時自身連點保持不變。' },
+            { q: '如果 3 張連環都被燒，會怎樣？',
+              a: '每張連鎖扣 3 點戰力（-1 燃燒 + 2 次被傳），但三張各自剩「連 1」。<br>詳細：<br>① 燃燒：A、B、C 各 -1，連點不變（各連3）<br>② A 傳播：B、C 各 -1，連點 -1（B、C 各連2）<br>③ B 傳播：A、C 各 -1，連點 -1（A→連2、C→連1）<br>④ C 傳播：A、B 各 -1，連點 -1（A→連1、B→連1）<br>合計：每張 -3，剩餘連點各 1' },
+            { q: '連環會被曹仁【堅守】擋下嗎？',
+              a: '<b>會。</b>堅守生效（己方劣勢）時，堅守可擋下戰力流失，整批連環傳播被完全擋下。' },
+            { q: '連環會被程普【督戰】擋下嗎？',
+              a: '<b>不會。</b>督戰只擋「傷害」，不擋「戰力流失」。連環的傳播是戰力流失，穿過督戰。<br>但觸發源若本身是傷害（例如威嚇打過來），督戰會先擋掉該傷害 → 連環也不會被觸發。' },
+            { q: '驅虎 -1 戰力會觸發連環嗎？',
+              a: '<b>不會。</b>驅虎 -1 屬於「純戰力流失」，不是燃燒也不是傷害。<br>類似的還有：權謀 -1 光環、力竭 -1，都不會觸發連環。' },
             { q: '用過之後還能再用嗎？',
               a: '不能。觸發後龐統失去此技能（<b>每場一次</b>）。' },
             { q: '準備期間龐統被沉默會怎樣？',
@@ -3540,17 +3798,17 @@ const FAQ_DB = {
         title: '鄧艾 · 奇襲',
         qa: [
             { q: '鄧艾的奇襲跟魏延一樣嗎？',
-              a: '機制<b>完全相同</b>：只有「<b>陣地結算前</b>」階段打出、可打至任一陣地、打至過去陣地的翻轉延後到本輪結束才生效。差別只在鄧艾是 2/4、魏延是 1/2。' },
+              a: '機制<b>完全相同</b>：只有「<b>陣地結算前</b>」階段打出、可打至任一陣地、打至過去陣地的翻轉在結算前結束後、當前陣地結算之前立即執行。差別只在鄧艾是 2/4、魏延是 1/2。' },
             { q: '鄧艾翻轉過去陣地的效果更強嗎？',
               a: '是的。4 戰力比魏延的 2 戰力更有機會讓過去陣地翻盤，但也更貴（2 糧 vs 1 糧），更適合在結算前「救回一場已輸的陣地」。' },
             { q: '打鄧艾到過去陣地，能馬上讓我變 1:1 嗎？',
-              a: '<b>不能。</b>與魏延相同：若本輪結算後對手達到 2 勝，遊戲立刻結束，翻轉不會執行。' },
+              a: '<b>能！</b>與魏延相同：結算前結束後系統立即重算所有過去陣地，若翻轉使第 1 輪改判你勝，勝負數馬上變 1:1，之後才結算當前陣地。' },
             { q: '翻轉可以阻止對手獲勝嗎？',
-              a: '<b>不能。</b>遊戲結束的判定在翻轉之前。' },
+              a: '<b>可以。</b>過去陣地的翻轉在當前陣地結算之前執行：若翻轉後某方已達 2 勝，立即獲勝，當前陣地不再結算。' },
             { q: '打鄧艾到「未來陣地」有什麼用？',
               a: '用處<b>很小</b>。未來陣地<b>不會提前結算</b>，鄧艾只能等那輪到來時參戰。加上 2 糧成本，幾乎是浪費。<br>優先順序：<b>過去 &gt; 當前 &gt; 未來</b>。' },
             { q: '打鄧艾到過去陣地，什麼情況下能翻盤？',
-              a: '需要：<br>• 該陣地原本是對手贏<br>• 目前的戰力差距 &lt; 4（鄧艾的戰力）<br>• 若平手：該陣地當年的先手方是你<br>符合以上條件時，本輪若無分出勝負，系統才把該陣地判給你。' },
+              a: '需要：<br>• 該陣地原本是對手贏<br>• 目前的戰力差距 &lt; 4（鄧艾的戰力）<br>• 若平手：該陣地當年的先手方是你<br>符合以上條件時，結算前結束後系統立即把該陣地翻轉判給你，勝負數同步更新。' },
         ]
     },
     '117': {
@@ -3601,9 +3859,13 @@ const FAQ_DB = {
         title: '陸遜 · 連營',
         qa: [
             { q: '連營怎麼觸發？',
-              a: '己方出牌階段<b>主動點「連營」按鈕</b>，選對陣一張牌【燃燒】至陣地結算。陸遜失去所有技能作為代價。' },
+              a: '己方出牌階段<b>主動點「連營」按鈕</b>，選對陣一張牌【燃燒】至陣地結算。<br>代價：<b>只失去【連營】</b>，【謙遜】被動照常保留。<b>每場僅能使用一次</b>。' },
             { q: '為什麼按鈕有時不出現？',
-              a: '若對陣沒有正面牌、或陸遜已被沉默，按鈕不會顯示。' },
+              a: '若對陣沒有正面牌、陸遜已被沉默、或<b>本場連營已用過</b>，按鈕不會顯示。' },
+            { q: '用過連營後，謙遜還在嗎？',
+              a: '在。<b>謙遜是被動，不受影響</b>。陸遜用過連營後仍是 3 戰力，且對陣每有一張戰力高於他的正面敵軍就 +1。' },
+            { q: '陸遜被棄置後重新打出，連營會恢復嗎？',
+              a: '<b>不會</b>。「每場僅能使用一次」是<b>整場遊戲</b>的限制（記錄在玩家身上），不是這一張牌的限制。' },
         ]
     },
     '209': {
@@ -3643,34 +3905,24 @@ const FAQ_DB = {
     '221': {
         title: '孫堅 · 英魂',
         qa: [
-            { q: '英魂什麼時候觸發？會多次觸發嗎？',
-              a: '孫堅<b>正面進場後</b>立即觸發一次。此後不再觸發（不會隨局勢變化再 buff）。' },
-            { q: '「戰力比自己少」怎麼判斷？',
-              a: '用<b>最終戰力</b>比較。<br>• 孫堅戰力 = 基本 6 + 所有被動加成（吳王光環、建言、龍吟、忘隙、放權等）+ mod − 減益<br>• 友軍戰力 = 同樣計算<br>• <b>嚴格小於</b>（相等不算）' },
-            { q: '哪些友軍會被 buff？',
-              a: '同時符合以下三條件：<br>① 與孫堅<b>同陣地</b><br>② <b>正面朝上</b>（蓋牌不算）<br>③ 最終戰力<b>嚴格小於</b>孫堅<br>孫堅自己不算。' },
-            { q: '加成是永久的嗎？',
-              a: '是。作為 <code>mod +1</code> 永久加在牌上，直到該陣地結算。可用《被沉默》以外的所有方式保留（沉默不影響 mod）。' },
-            { q: '順序是怎麼樣的？',
-              a: '<b>進場順序</b>：<br>① 孫堅放到場上<br>② 靜態 buff/debuff 全部計算（王類光環、建言、力竭等）<br>③ <b>英魂觸發</b>（用計算後的最終戰力比較）<br>④ 敵方 <code>onEnemyEnter</code> 反應技能（威嚇、烈矢等）' },
+            { q: '英魂什麼時候觸發？',
+              a: '兩階段：<br>① 進場後進入<b>「準備」</b>狀態（此時無效果）；<br>② 下個己方回合開始時、或對手放棄跟牌時，觸發移除效果。' },
+            { q: '「戰力比自己小 4 或更多」怎麼判斷？',
+              a: '用<b>最終戰力</b>比較。<br>• 孫堅戰力 = 基本 6 + 所有被動加成 + mod − 減益<br>• 敵軍戰力 = 同樣計算<br>• 門檻：敵方戰力 ≤ 孫堅戰力 − 4' },
+            { q: '哪些敵軍會被移除？',
+              a: '同時符合以下條件：<br>① 與孫堅<b>同陣地</b><br>② <b>正面朝上</b>（蓋牌不算）<br>③ 非<b>【上將】</b><br>④ 最終戰力 ≤ 孫堅戰力 − 4<br>⑤ 不受【堅守】保護' },
+            { q: '移除由誰選擇？',
+              a: '人類玩家觸發時彈出 UI 選擇；AI 則自動挑選<b>威脅值最高</b>的目標。' },
+            { q: '準備期間孫堅被沉默會怎樣？',
+              a: '效果<b>不觸發</b>，孫堅維持原狀直到準備階段結束。' },
             { q: '孫堅吃吳王光環嗎？',
-              a: '會。孫堅是吳國，若同陣地有孫權【吳王】或曹丕【魏王】等光環，孫堅自己也 +1，<b>門檻提高</b>，更多友軍會被 buff。' },
-            { q: '與建言、龍吟、放權等 +1 疊加嗎？',
-              a: '完全疊加。英魂是獨立的一次性 +1 mod，與所有其他 buff 並存。<br>例如：<br>• 孫堅戰力 6<br>• 關平【龍吟】已在場，友軍 A 戰力 5 → 6（龍吟 +1）<br>• 孫堅進場，英魂評估：A 戰力 6 = 孫堅 6 → <b>不觸發</b>（因為要嚴格小於）' },
-            { q: '若友軍戰力與孫堅相同？',
-              a: '<b>不觸發。</b>必須嚴格小於。exact tie 不算。' },
-            { q: '對蓋牌有效嗎？',
-              a: '<b>無效。</b>只有正面朝上的友軍。即使蓋牌下是低戰力牌，也不會被 buff。' },
-            { q: '若同陣地有 2 個孫堅？（假設透過奇策等）',
-              a: '每個孫堅各自觸發一次。第二個孫堅進場時，會重新評估場上所有友軍（包含第一個孫堅）的最終戰力，符合條件者再 +1。' },
-            { q: '沉默會影響嗎？',
-              a: '不會。沉默只是失去技能，不影響戰力與 mod。即使孫堅被沉默，已觸發的英魂 +1 依然存在。' },
+              a: '會。孫堅是吳國，若同陣地有吳王光環（如孫權、孫皓），孫堅 +1，<b>門檻提高</b>，可移除的敵軍更多。' },
             { q: '與曹仁【堅守】衝突嗎？',
-              a: '不衝突。英魂是 <b>+1 mod（增加戰力）</b>，堅守是「戰力不會減少」的保護。<br>但若對手有【堅守】且己方劣勢，己方友軍本來就無法被減少戰力，+1 照樣生效。' },
+              a: '<b>會。</b>若目標敵軍受【堅守】保護（該陣地敵方劣勢），孫堅無法移除它。' },
             { q: '孫堅是上將嗎？',
               a: '是。孫堅為<b>【上將】</b>，出牌並結算完英魂後，會自動放棄跟牌。' },
-            { q: 'AI 怎麼評估孫堅的價值？',
-              a: 'AI 會用 phantom 插入法模擬孫堅進場，計算能 buff 幾個友軍：<br>• 每個被 buff 的友軍約 +3 分<br>• 被 buff 的友軍是高威脅值 → 額外加分<br>• 2+ 個友軍被 buff → 大幅加分<br>• 完全 buff 不到 → 扣分' }
+            { q: '英魂會多次觸發嗎？',
+              a: '<b>不會。</b>「準備」結束後只觸發一次（在回合開始或對手放棄時，取較早者），觸發後孫堅失去此技能。' },
         ]
     },
     '303': {
@@ -3777,7 +4029,7 @@ function openVisualSettings() {
     div.className = 'overlay visual-settings-overlay';
     div.style.zIndex = '1300';
     div.innerHTML = `<div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">
-        <h2>🎨 視覺設定</h2>
+        <h2>⚙️ 選項</h2>
         <p style="font-size:12px;color:#a89070;">點擊主題預覽立即切換（自動儲存）</p>
 
         <div style="padding:14px;background:rgba(0,0,0,.15);border-radius:10px;margin-bottom:16px;">
@@ -3801,7 +4053,7 @@ function openVisualSettings() {
             <div style="font-size:11px;color:#a89070;margin-top:8px;">手機玩家建議 80%~90%</div>
         </div>
 
-        <div style="padding:14px;background:rgba(0,0,0,.15);border-radius:10px;">
+        <div style="padding:14px;background:rgba(0,0,0,.15);border-radius:10px;margin-bottom:16px;">
             <div style="font-size:13px;color:#e8c060;letter-spacing:2px;margin-bottom:10px;">無障礙</div>
             <label class="chk chk-sm" style="display:inline-flex;margin-right:12px;">
                 <input type="checkbox" id="vs-reduced" ${safeStore.get('sanguo_reducedMotion') === '1' ? 'checked' : ''}
@@ -3815,6 +4067,33 @@ function openVisualSettings() {
             </label>
         </div>
 
+        <div style="padding:14px;background:rgba(120,20,20,.20);border:1px solid rgba(255,80,80,.45);border-radius:10px;">
+            <div style="font-size:13px;color:#ff9c9c;letter-spacing:2px;margin-bottom:10px;">🐛 調試模式</div>
+            <label class="chk chk-sm" style="display:inline-flex;margin-right:12px;">
+                <input type="checkbox" id="vs-debug" ${isDebugMode() ? 'checked' : ''}
+                    onchange="setDebugMode(this.checked)">
+                <span>啟用調試模式</span>
+            </label>
+            <div style="font-size:11px;color:#ff9c9c;margin-top:8px;line-height:1.7;">
+                ⚠️ 啟用後將<b>暫停成就系統</b>，並在牌庫檢視中提供「加入手牌」功能。<br>
+                此模式僅供測試使用。
+            </div>
+            <button class="btn" style="font-size:12px;padding:5px 12px;margin-top:10px;" onclick="resetDebugChanges()">🔄 重置所有調試更改</button>
+        </div>
+        <div style="padding:14px;background:rgba(20,60,120,.20);border:1px solid rgba(80,180,255,.45);border-radius:10px;margin-bottom:16px;">
+            <div style="font-size:13px;color:#7cc4ff;letter-spacing:2px;margin-bottom:10px;">⚡ 快速 AI 背景對戰（Debug）</div>
+            <label class="chk chk-sm" style="display:inline-flex;margin-right:12px;">
+                <input type="checkbox" id="vs-fastai" ${isFastAiDebug() ? 'checked' : ''}
+                    onchange="setFastAiDebug(this.checked)">
+                <span>啟用快速 AI 背景對戰</span>
+            </label>
+            <div style="font-size:11px;color:#7cc4ff;margin-top:8px;line-height:1.75;">
+                AI vs AI 以最高速度執行。<br>
+                • 大型對戰記錄仍會寫入、勝率照常統計<br>
+                • <b>不會</b>自動下載小型 JSON 記錄<br>
+                • 線上對戰將被停用
+            </div>
+        </div>
         <div style="text-align:center;margin-top:20px;">
             <button class="btn" onclick="resetVisualSettings()">重設預設</button>
             <button class="btn btn-red" onclick="closeVisualSettings()" style="margin-left:8px;">關閉</button>
@@ -3826,6 +4105,7 @@ function openVisualSettings() {
 function closeVisualSettings() {
     const el = document.querySelector('.visual-settings-overlay');
     if (el) el.remove();
+    if (document.querySelector('.setup')) showSetup();
 }
 function setReducedMotion(on) {
     safeStore.set('sanguo_reducedMotion', on ? '1' : '0');
@@ -3908,6 +4188,11 @@ constructor(cfg) {
     this.jianxiong = null;
     this.lianying = null;
     this.guanyu = null;
+    this.diaochan = null;
+    this.liangyuan = null;
+    this.lukang = null;
+    this.sunhao = null;
+    this.kezheng = null;
     this.selectedField = null;
     this.lastResult = null;
     this.gameWinner = null;
@@ -3930,11 +4215,23 @@ constructor(cfg) {
     this._simaYiLastChanceUsed = false;
     this._yinrenUsedThisRound = false;   // ★ v3.12
     this._pendingFlips = {};          // ★ v3.9: { bi: { projected, totals } }
+    this.preEndTurn = null;           // ★ v3.7: preend 目前行動者（seat index）
+    this.preEndPassed = [];           // ★ v3.7: preend 各玩家是否已放棄
     this._paymentOrders = {};         // ★ v3.5: 結算支付順序
     this._gamePlays = {};             // ★ v4.0: 整場遊戲每個玩家出過的卡（Set<cardId>）
     this._gameStatsRecorded = false;  // ★ v4.0: 防止重複寫入
     for (let i = 0; i < this.numPlayers; i++) this._gamePlays[i] = new Set();
     this._autoRestartQueued = false;  // ★ 自動重開排程旗標
+	this._fastAiDebug = !!cfg.fastAIDebug;
+    this._backgroundMode = this._fastAiDebug;
+    this._aiPaused = false;
+    this._savedAiSpeedForView = null;   // ★ 查看模式暫存的速度
+    if (this._fastAiDebug) {
+        this.aiSpeed = 100;
+		this.cfg.autoExport = false;              // 不下載 JSON
+		this.cfg.autoRestart = true;              // ★ 連續自動重開
+		this.cfg.autoRestartDelay = 500;          // ★ 只等 0.5 秒（而非預設 2 秒）
+	}
     this._paymentState = null;        // ★ v3.5: 支付順序 UI 狀態
     this._paymentResolver = null;     // ★ v3.5: Promise resolver
     // v3.6: destroy flag & timer tracking (fix "quit doesn't stop AI")
@@ -4024,6 +4321,7 @@ recordEvent(type, data = {}) {
     if (!this.replay) return;
     this.replay.events.push(Object.assign({ i: this.replay.events.length, type, round: this.round }, data));
 }
+
 isAI(pi) {
     const p = this.players[pi];
     if (!p) return false;
@@ -4141,7 +4439,7 @@ reshuffle() {
         c.mod=0; c.faceDown=false; c.burn=false; c.silenced=false; c.activated=false;
         c.betrayed=false; c.betrayedFrom=null; c.usesLeft=undefined;
         c.pendingSilence=false; c.pendingBurnNext=false; c.pendingDamageNext=false;
-        c.justDrawn=false; c.lianhuan=false; c.lianhuanArmed=false;
+        c.justDrawn=false; c.lianhuan=false; c.lianhuanArmed=false; c.lianhuanHp=0;
         c.grantedFubing=false; c.keepOnField=false; c.guardUsed=false; c._oneShotBuff=undefined;
         c.preparing=false; c._jiushiUsed=false;
         c.playedBy=null;             // ★ v3.8
@@ -4157,7 +4455,11 @@ reshuffle() {
     this.deck.push(...back);
     this.addLog('sys', '牌庫耗盡，棄牌區重新洗入牌庫');
 }
-addLog(type, msg) { this.logs.push({ type, msg }); if (this.logs.length > 400) this.logs.shift(); }
+addLog(type, msg) {
+    if (this._backgroundMode) return;   // ★ bg 模式跳過（純顯示用）
+    this.logs.push({ type, msg });
+    if (this.logs.length > 400) this.logs.shift();
+}
 logHand(pi, tag) {
     const p = this.players[pi];
     const names = p.hand.map(c=>c.data.name).join(', ') || '(無)';
@@ -4240,7 +4542,7 @@ getPower(inst, pi, bi, atSettle, skipLijie) {
             p -= bigOnes;
         }
         // 鶴翼: power at least 1
-        if (sk.includes('鶴翼') && p < 1) p = 1;
+        if (sk.includes('鶴翼') && p < 2) p = 2;
         // 權謀 (鐘會) — own power +1 per card on same field
 		// 權謀（鐘會）：自己 +1 per card
 		if (sk.includes('權謀')) {
@@ -4300,6 +4602,11 @@ getPower(inst, pi, bi, atSettle, skipLijie) {
             if (ask.includes('魏王') && d.faction === 'wei') baseBonus += 1;
             if (ask.includes('吳王') && d.faction === 'wu') baseBonus += 1;
         });
+		// ★ 連理：同陣地有 2 張以上帶【連理】的牌 → 各 +1 戰力
+        if (inst.wedded) {
+            const weddingCount = myField.filter(c => c.wedded && !c.faceDown).length;
+            if (weddingCount >= 2) p += 1;
+        }
         // 詐降：對陣每有【魏王】/【吳王】/【蜀王】技能在場，自己 +1（不分陣營）
         if ((d.skills||[]).includes('詐降')) {
             enemyField.forEach(foe => {
@@ -4329,6 +4636,39 @@ getPower(inst, pi, bi, atSettle, skipLijie) {
     if (!inst.silenced && (d.skills||[]).includes('驍勇')) p = Math.max(p, d.power);
     return Math.max(0, p);
 }
+/* ★ v3.7: 陸抗【繼承】用 — 計算一張牌目前享受的「額外戰力加成」
+   （不含基本戰力、不含 mod 本身，排除空城/涉獵/謙遜/力竭/斷路/腹鱗/
+    權謀/自立/獨殿/詐騙/詐降/伏兵/父魂/虎子等本身技能） */
+_incomingBonus(inst, pi, bi) {
+    const d = inst.data;
+    const sk = d.skills || [];
+    const myField = this.players[pi].fields[bi];
+    let bonus = 0;
+    // 王類光環
+    myField.forEach(ally => {
+        if (ally === inst || ally.faceDown || ally.silenced) return;
+        const ask = ally.data.skills || [];
+        if (ask.includes('蜀王') && d.faction === 'shu') bonus += 1;
+        if (ask.includes('魏王') && d.faction === 'wei') bonus += 1;
+        if (ask.includes('吳王') && d.faction === 'wu') bonus += 1;
+    });
+    // pendingBuffs（馬超鐵騎 / 郭嘉遺計）
+    const buffs = this.players[pi].pendingBuffs?.[bi] || 0;
+    if (buffs > 0) bonus += buffs;
+    // 一次性 buff（龍吟 / 放權 / 忘隙）
+    const oneShot = this.players[pi].oneShotBuffs?.[bi];
+    if (oneShot && oneShot.target === inst) bonus += oneShot.amount;
+    // 詐降：對陣每有一張王類光環，+1
+    if (sk.includes('詐降')) {
+        const enemyField = this.players[this.opponentOf(pi)].fields[bi];
+        enemyField.forEach(foe => {
+            if (foe.faceDown || foe.silenced) return;
+            const fsk = foe.data.skills || [];
+            if (fsk.includes('魏王') || fsk.includes('吳王') || fsk.includes('蜀王')) bonus += 1;
+        });
+    }
+    return bonus;
+}
 fieldPower(pi, bi, atSettle, skipLijie) {
     return this.players[pi].fields[bi].reduce((s,c)=>s+this.getPower(c,pi,bi,atSettle,skipLijie), 0);
 }
@@ -4356,7 +4696,8 @@ _startWatchdog() {
         if (this._destroyed) return;
         if (this.state !== 'battle') return;
         if (this.netMode) return;
-        if (!this.players.every(p => p.botType)) return;   // 只看 AI vs AI
+        if (this._aiPaused) return;              // ★ v3.9: 使用者主動暫停 → 不偵測
+        if (!this.players.every(p => p.botType)) return;
         // 有 modal 開著 → 代表在等玩家/AI 處理，不算卡住
         if (this.scry || this.jianxiong || this.quanheng || this.lianying ||
             this.guanyu || this.xunyu || this.diaochan || this.xunyou || this._paymentState) return;
@@ -4367,7 +4708,7 @@ _startWatchdog() {
         if (idle < 8000) return;   // 8 秒內有活動 → 正常
 
         const needsTurn    = this.phase === 'turn'   && this.isAI(this.current) && !this.players[this.current].passed;
-        const needsPreEnd  = this.phase === 'preend' && this.preEndOrder && this.isAI(this.preEndOrder[this.preEndIdx]) && !this.preEndDone[this.preEndIdx];
+        const needsPreEnd  = this.phase === 'preend' && this.preEndTurn !== null && this.preEndTurn !== undefined && this.isAI(this.preEndTurn) && !this.preEndPassed[this.preEndTurn];
         const needsHandoff = !!this.cover;
 
         if (needsTurn || needsPreEnd || needsHandoff) {
@@ -4386,6 +4727,10 @@ renderBackBtn() {
 openGameMenu() {
     const slot = document.getElementById('modal-slot');
     if (!slot) return;
+    // ★ 開啟選單時暫停 AI（避免 AI 走下一步時清掉選單）
+    this._aiPausedBeforeMenu = this._aiPaused;
+    this._aiPaused = true;
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
     const scale = getUIScale();
     const scaleOpts = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3];
     const isAllBots = this.players.every(p => p.botType);
@@ -4397,8 +4742,33 @@ openGameMenu() {
     div.innerHTML = `<div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
         <h2>☰ 遊戲選單</h2>
         <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
-            <button class="btn btn-red btn-big" onclick="game.quitToMenu()" style="width:100%;">🚪 離開對戰</button>
-            <button class="btn btn-gold btn-big" onclick="game.closeGameMenu(); openVisualSettings();" style="width:100%;">🎨 視覺設定</button>
+            ${this._fastAiDebug
+    ? `<button class="btn btn-gold btn-big" onclick="game.minimizeToBackground()" style="width:100%;">🏠 返回選單（AI 繼續背景執行）</button>
+       <button class="btn btn-red btn-big" onclick="stopFastAIBattle()" style="width:100%;">⏹ 停止 AI 對戰</button>`
+    : `<button class="btn btn-red btn-big" onclick="game.quitToMenu()" style="width:100%;">🚪 離開對戰</button>`}
+<div style="padding:14px;background:rgba(20,60,120,.20);border:1px solid rgba(80,180,255,.45);border-radius:10px;">
+    <div style="font-size:14px;color:#7cc4ff;letter-spacing:2px;margin-bottom:10px;">🧊 解凍 AI（調試）</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <button class="ui-scale-btn" onclick="game.defreezeRecalculate()">🔄 重新計算</button>
+    <button class="ui-scale-btn" onclick="game.defreezeRedraw()">🖼 刷新畫面</button>
+    <button class="ui-scale-btn" onclick="game.defreezeSkipTurn()">⏭ 跳過 AI 回合</button>
+    <button class="ui-scale-btn" onclick="game.defreezeStopTurn()">⏸ 停止 AI 回合</button>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+    <button class="ui-scale-btn" onclick="game.defreezeForceRedraw()"
+        style="border-color:#ff8844;color:#ffb070;font-weight:bold;"
+        title="丟光 AI 手牌並重抽等量（打破 AI 思考死結）">
+        🔄 強制 AI 重抽手牌
+    </button>
+</div>
+	<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+		<button class="ui-scale-btn" onclick="game.copyCurrentBattleLog()" style="border-color:#7cc4ff;color:#7cc4ff;">📋 複製對局記錄 JSON</button>
+	</div>
+    <div style="font-size:11px;color:#7cc4ff;margin-top:8px;line-height:1.7;">
+        AI 卡住時使用。停止後需按「重新計算」恢復。
+    </div>
+</div>
+            <button class="btn btn-gold btn-big" onclick="game.closeGameMenu(); openVisualSettings();" style="width:100%;">⚙️ 選項</button>
 			<div style="padding:14px;background:rgba(0,0,0,.3);border-radius:10px;border:1px solid rgba(200,160,64,.3);">
                 <div style="font-size:14px;color:#e8c060;letter-spacing:2px;margin-bottom:10px;">🔍 UI 縮放</div>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -4440,6 +4810,15 @@ closeGameMenu() {
     if (!slot) return;
     const el = slot.querySelector('.game-menu-overlay');
     if (el) el.remove();
+    // ★ 關閉選單時恢復 AI
+    if (this._aiPausedBeforeMenu !== undefined) {
+        this._aiPaused = this._aiPausedBeforeMenu;
+        this._aiPausedBeforeMenu = undefined;
+    }
+    // 若 AI 之前沒被暫停（不是透過選單），主動排程下一步
+    if (!this._aiPaused) {
+        this.scheduleAI();
+    }
 }
 setUIScale(s) {
     setUIScaleGlobal(s);
@@ -4471,19 +4850,32 @@ quitToMenu() {
 /* 速度延遲 helper — 只在所有玩家都是 AI 時套用倍率 */
 _delay(ms) {
     if (this.netMode) return ms;
+    if (this._fastAiDebug && this._backgroundMode) return 0;   // ★ 背景模式零延遲
     if (this.players && this.players.every(p => p.botType)) return ms / (this.aiSpeed || 1);
     return ms;
 }
-_sleep(ms) { return sleep(this._delay(ms)); }
+_sleep(ms) {
+    if (this._backgroundMode) return Promise.resolve();   // ★ bg 不等待
+    return sleep(this._delay(ms));
+}
 _sTO(fn, ms) {
-    // v3.11: 追蹤活動時間，供 watchdog 使用
     this._lastActivityTime = Date.now();
+    const d = this._delay(ms);
+    // ★ bg 快速模式：用 microtask 繞過背景分頁節流（setTimeout 背景會被 clamp 到 1000ms+）
+    if (d <= 0 && this._backgroundMode) {
+        queueMicrotask(() => {
+            if (this._destroyed) return;
+            this._lastActivityTime = Date.now();
+            try { fn(); } catch(e) { console.error('[timer]', e); }
+        });
+        return -1;
+    }
     const id = setTimeout(() => {
         if (this._allTimers) this._allTimers.delete(id);
         if (this._destroyed) return;
         this._lastActivityTime = Date.now();
         try { fn(); } catch(e) { console.error('[timer]', e); }
-    }, this._delay(ms));
+    }, d);
     if (this._allTimers) this._allTimers.add(id);
     return id;
 }
@@ -4521,14 +4913,14 @@ _trackCardPlayed(pi, cardId) {
     this._gamePlays[pi].add(cardId);
 }
 _recordGameStats(winningPlayers) {
-    // ★ v4.0: 整場勝率結算
-    //   遊戲結束那一刻呼叫一次。
-    //   遍歷整場帳本 this._gamePlays：
-    //     - 每張出過的卡 → plays+1
-    //     - 勝方出過的卡 → wins+1
-    //   同場同一玩家同一張卡只算一次（Set 去重）。
     if (this._gameStatsRecorded) return;
     this._gameStatsRecorded = true;
+
+    // ★ 新增：AI vs AI 對戰場次計數（單機場景、全員 AI）
+    const isAIvsAI = this.players.every(p => p.botType);
+    if (isAIvsAI && !this.netMode) {
+        incrementAiBattleCount();
+    }
 
     const stats = loadCardStats();
     const winners = Array.isArray(winningPlayers) ? winningPlayers : [winningPlayers];
@@ -4542,14 +4934,57 @@ _recordGameStats(winningPlayers) {
         if (!bucket) continue;
 
         const won = isWinnerSide(pi);
-        for (const cardId of plays) {
-            if (!cardId || (typeof cardId === 'string' && cardId.startsWith('__'))) continue;
-            if (!stats[bucket][cardId]) stats[bucket][cardId] = { plays: 0, wins: 0 };
-            stats[bucket][cardId].plays++;
-            if (won) stats[bucket][cardId].wins++;
-        }
+        const modeKey = this.gameMode || 'all';
+        const writeToBucket = (modeBucket) => {
+            if (!stats[bucket][modeBucket]) stats[bucket][modeBucket] = {};
+            for (const cardId of plays) {
+                if (!cardId || (typeof cardId === 'string' && cardId.startsWith('__'))) continue;
+                if (!stats[bucket][modeBucket][cardId]) stats[bucket][modeBucket][cardId] = { plays: 0, wins: 0 };
+                stats[bucket][modeBucket][cardId].plays++;
+                if (won) stats[bucket][modeBucket][cardId].wins++;
+            }
+        };
+        writeToBucket(modeKey);    // 寫入該模式
+        writeToBucket('all');      // 同時寫入「全部」
     }
     saveCardStats(stats);
+	    // ★ 成就追蹤
+    this._trackAchievements(winningPlayers);
+}
+/* ============ 成就追蹤（僅單機、非調試模式） ============ */
+_trackAchievements(winningPlayers) {
+    if (this.netMode) return;
+    if (typeof isDebugMode === 'function' && isDebugMode()) return;
+
+    const humanSeats = [];
+    for (let pi = 0; pi < this.numPlayers; pi++) {
+        if (!this.players[pi].botType) humanSeats.push(pi);
+    }
+    if (humanSeats.length === 0) return;   // 純 AI 對戰不計
+
+    const winners = Array.isArray(winningPlayers) ? winningPlayers : [winningPlayers];
+    const isWinnerSide = (pi) => winners.includes(pi) ||
+        (this.teams && winners.some(w => this.areAllies(pi, w)));
+
+    const humanWon = humanSeats.some(pi => isWinnerSide(pi));
+
+    const st = loadAchievementsData();
+    st.games++;
+    if (humanWon) {
+        st.wins++;
+        st.currentStreak++;
+        if (st.currentStreak > st.maxStreak) st.maxStreak = st.currentStreak;
+    } else {
+        st.currentStreak = 0;
+    }
+
+    for (const pi of humanSeats) {
+        if (this._gamePlays && this._gamePlays[pi]) {
+            st.totalCardsPlayed += this._gamePlays[pi].size;
+        }
+    }
+
+    saveAchievementsData(st);
 }
 renderSpeedPanel() {
     if (this.netMode) return '';
@@ -4563,7 +4998,7 @@ renderSpeedPanel() {
 clearCountdown() { if(this.countdownTimer){clearTimeout(this.countdownTimer);this.countdownTimer=null;} this.countdown=null; }
 startCountdown(onDone) {
     this.clearCountdown();
-    if (this.netMode) { onDone(); return; }
+    if (this.netMode || this._fastAiDebug) { onDone(); return; }
     const allBots = this.players.every(p => p.botType);
     this.countdown = allBots ? 2 : 3;
     this.render();
@@ -4605,15 +5040,13 @@ _checkAutoFlip() {
 
     // ★ AI vs AI: 一次短排程把所有翻牌 + 開場一次完成，跳過慢動畫
     if (allBots) {
-        this.flipAutoTimer = setTimeout(() => {
+        this.flipAutoTimer = this._sTO(() => {
             this.flipAutoTimer = null;
             if (this.state !== 'flip') return;
-            // 依序翻開所有 AI 的牌（revealFlip 內有平手處理）
             for (let i = 0; i < this.numPlayers; i++) {
-                if (this.state !== 'flip') return;   // 平手重抽會改 state 再回來
+                if (this.state !== 'flip') return;
                 if (!this.flipRevealed[i]) this.revealFlip(i);
             }
-            // 若已全部翻開且先手確定 → 立刻開始
             if (this.state === 'flip'
                 && this.firstPlayer !== null
                 && this.flipRevealed.every(x => x)) {
@@ -4656,7 +5089,7 @@ _sendCard(c) {
     c.mod = 0; c.faceDown = false; c.burn = false; c.silenced = false; c.activated = false;
     c.betrayed = false; c.betrayedFrom = null; c.usesLeft = undefined;
     c.pendingSilence = false; c.pendingBurnNext = false; c.pendingDamageNext = false;
-    c.justDrawn = false; c.lianhuan = false; c.lianhuanArmed = false;
+    c.justDrawn = false; c.lianhuan = false; c.lianhuanArmed = false; c.lianhuanHp = 0;
     c.grantedFubing = false; c.keepOnField = false; c.guardUsed = false;
     c._oneShotBuff = undefined; c.preparing = false; c._jiushiUsed = false;
     c.willRemove = false; c.willDiscard = false; c.originalOwner = undefined;
@@ -4836,6 +5269,7 @@ startBattle() {
     this._resetTurnStartFlags(this.current);
     this._triggerPreTurnFlip();
     this._triggerPangtongLianhuan();
+    this._triggerSunjianYinghun(this.current);
     this._triggerTurnStartSkills(this.current);
     this._logTurnStart();
 	this.maybeTriggerAIChats('round_start');
@@ -4858,10 +5292,11 @@ selectCard(uid) {
         pi = this.current;
         if (this.players[pi].passed) return;
     } else if (this.phase === 'preend') {
-        pi = this.preEndOrder[this.preEndIdx];
-        if (pi === undefined) return;
+        pi = this.preEndTurn;
+        if (pi === undefined || pi === null) return;
         if (this.isAI(pi)) return;
-        if (this.preEndDone[this.preEndIdx]) return;
+        if (this.preEndPassed[pi]) return;
+        if (this.netMode && pi !== this.localPlayerIdx) return;
     } else return;
     const p = this.players[pi];
     const inst = p.hand.find(c => c.uid === uid);
@@ -4895,8 +5330,8 @@ inspect(uid) {
 	const myIdx = this.netMode ? this.localPlayerIdx : this.current;
 	if (found.faceDown && ownerPi >= 0 && ownerPi !== myIdx) return;
 	if (!this.netMode && found.faceDown && ownerPi >= 0 && this.phase === 'preend'
-    && ownerPi !== this.preEndOrder[this.preEndIdx]) return;
-    if (found.faceDown && ownerPi>=0 && this.phase==='preend' && ownerPi!==this.preEndOrder[this.preEndIdx]) return;
+    && ownerPi !== this.preEndTurn) return;
+    if (found.faceDown && ownerPi>=0 && this.phase==='preend' && ownerPi!==this.preEndTurn) return;
     this.inspectCard = found; this.render();
 }
 closeInspect() { this.inspectCard = null; this.render(); }
@@ -4939,14 +5374,17 @@ getPlayableFields(inst, pi, phase) {
 
 doPlay(asAmbush) {
     if (this.cover || this.countdown !== null || !this.selected) return;
-    // ★ v3.9: preend 階段的人類出牌 → 走 doPreEndPlay
+    // ★ v3.7: preend 階段的人類出牌 → 走 doPreEndPlay（僅限奇襲/奇謀/奔襲卡與馬岱/徐榮埋伏）
     if (this.phase === 'preend') {
-        if (this.preEndDone[this.preEndIdx]) return;
-        const pep = this.preEndOrder[this.preEndIdx];
-        if (pep === undefined || this.isAI(pep)) return;
+        const pep = this.preEndTurn;
+        if (pep === undefined || pep === null) return;
+        if (this.preEndPassed[pep]) return;
+        if (this.isAI(pep)) return;
+        if (this.netMode && pep !== this.localPlayerIdx) return;
         const pp = this.players[pep];
         const inst = pp.hand.find(c => c.uid === this.selected);
         if (!inst) return;
+        if (!this.isPreEndPlayable(inst)) return;
         const allowed = this.getPlayableFields(inst, pep, 'preend');
         const bi = (this.selectedField !== null && allowed.includes(this.selectedField))
                     ? this.selectedField : this.currentBfIndex;
@@ -4967,9 +5405,22 @@ doPlay(asAmbush) {
     const bi = (this.selectedField !== null && allowed.includes(this.selectedField)) ? this.selectedField : this.currentBfIndex;
     this.selectedField = null;
     const ambush = !!asAmbush || !!inst.data.forceFaceDown;
-
+    // ★ v3.7: 孫皓【苛政】— 僅在出牌階段生效（preend 不受影響）
+    if (this.kezheng && this.kezheng.bi === bi && inst.data.cost !== this.kezheng.cost) {
+        this.addLog(pi, `⚠️ 孫皓【苛政】：本陣地僅能打出糧草 ${this.kezheng.cost} 的牌`);
+        this.selected = null;
+        // ★ v3.9 FIX: AI 被苛政擋下時，自動改為放棄，避免無限循環
+        if (this.isAI(pi)) {
+            this.render();
+            this._sTO(() => { if (!this.players[pi].passed) this.doPass(); }, 300);
+            return;
+        }
+        this.render();
+        return;
+    }
     if (!ambush) {
         const hasJieliang = p.fields[bi].some(c =>
+		
             !c.faceDown && !c.silenced && (c.data.skills||[]).includes('借糧'));
         const effectiveCost = (hasJieliang && inst.data.cost > 1) ? inst.data.cost - 1 : inst.data.cost;
         if (p.food < effectiveCost) return;
@@ -5005,6 +5456,7 @@ doPlay(asAmbush) {
             !c.faceDown && !c.silenced && c.data.id === 'pangtong' && c.activated);
         if (oppPangtong) {
             inst.lianhuan = true;
+            inst.lianhuanHp = 3;
             this.addLog(pi, `⚠️ 【連環】${inst.data.name} 被對陣龐統標記`);
         }
     }
@@ -5031,21 +5483,31 @@ doPlay(asAmbush) {
     }
 
     if (!ambush) this.runEntryTriggers(pi, inst, bi);
-    if (this.guanyu || this.xunyu || this.scry || this.diaochan) { this.selected = null; this.render(); return; }
+    if (this.guanyu || this.xunyu || this.scry || this.diaochan ||
+    this.liangyuan || this.lukang || this.sunhao) {
+    this.selected = null; this.render(); return;
+}
     this.doPlayAfterEntry(pi, inst, ambush, bi);
 }
+/* ★ v3.7: 夏侯淵【奔襲】交換 — 抽成方法，讓 turn 與 preend 兩條出牌路徑共用。
+   把 bi（已結算陣地）上戰力最高的正面非上將友軍換到當前陣地。 */
+_benxiSwap(pi, inst, bi, ambush) {
+    if (ambush) return;
+    if (!inst || !inst.data) return;
+    if (!(inst.data.skills || []).includes('奔襲')) return;
+    if (bi === this.currentBfIndex) return;
+    const src = this.players[pi].fields[bi];
+    const candidates = src.filter(c => c !== inst && !c.faceDown && !c.data.isGeneral);
+    if (candidates.length === 0) return;
+    let best = candidates[0];
+    candidates.forEach(c => { if (c.data.power > best.data.power) best = c; });
+    src.splice(src.indexOf(best), 1);
+    this.players[pi].fields[this.currentBfIndex].push(best);
+    this.addLog(pi, `[R${this.round}] 夏侯淵【奔襲】：${best.data.name} 移至【${BATTLEFIELDS[this.currentBfIndex]}】`);
+    this.recordEvent('benxi_swap', { player: pi, movedId: best.data.id, from: bi, to: this.currentBfIndex });
+}
 doPlayAfterEntry(pi, inst, ambush, bi) {
-    if (!ambush && inst.data.skills && inst.data.skills.includes('奔襲') && bi !== this.currentBfIndex) {
-        const src = this.players[pi].fields[bi];
-        const candidates = src.filter(c => c !== inst && !c.faceDown && !c.data.isGeneral);
-        if (candidates.length > 0) {
-            let best = candidates[0];
-            candidates.forEach(c => { if (c.data.power > best.data.power) best = c; });
-            src.splice(src.indexOf(best), 1);
-            this.players[pi].fields[this.currentBfIndex].push(best);
-            this.addLog(pi, `[R${this.round}] 夏侯淵【奔襲】：${best.data.name} 移至【${BATTLEFIELDS[this.currentBfIndex]}】`);
-        }
-    }
+    this._benxiSwap(pi, inst, bi, ambush);
     this.applyBurn(pi);
     const p = this.players[pi];
 
@@ -5201,6 +5663,7 @@ serializeForPlayer(forPlayer) {
             pendingBuffs: p.pendingBuffs || {},
             roundSpent: p.roundSpent || 0,
             cardsPlayedByPlayer: p.cardsPlayedByPlayer || 0,
+            lianyingUsed: !!p.lianyingUsed,
             oneShotBuffs: p.oneShotBuffs || null,
             lastFaceUpEnemy: (p.lastFaceUpEnemy || []).map(c => c ? c.uid : null)
         };
@@ -5220,8 +5683,9 @@ serializeForPlayer(forPlayer) {
         mulliganPlayer: this.mulliganPlayer, mulliganStage: this.mulliganStage,
         selected: this.selected, selectedField: this.selectedField,
         _rematchVotes: this._rematchVotes || [false, false],
-        preEndOrder: this.preEndOrder, preEndIdx: this.preEndIdx,
-        preEndDone: this.preEndDone, history: this.history,
+        preEndTurn: (this.preEndTurn === undefined ? null : this.preEndTurn),
+        preEndPassed: this.preEndPassed ? [...this.preEndPassed] : [],
+        history: this.history,
         cardsPlayedCount: this.cardsPlayedCount,
         logs: this.logs.slice(-150)
     };
@@ -5241,6 +5705,7 @@ applyState(s) {
             pendingBuffs: p.pendingBuffs || {},
             roundSpent: p.roundSpent || 0,
             cardsPlayedByPlayer: p.cardsPlayedByPlayer || 0,
+            lianyingUsed: !!p.lianyingUsed,
             oneShotBuffs: p.oneShotBuffs,
             lastFaceUpEnemy: new Array(this.fieldCount).fill(null)
         };
@@ -5262,8 +5727,9 @@ applyState(s) {
         roundFirstPlayer: s.roundFirstPlayer, lastResult: s.lastResult,
         gameWinner: s.gameWinner, firstPasser: s.firstPasser,
         lastPasser: s.lastPasser, mulliganPlayer: s.mulliganPlayer,
-        mulliganStage: s.mulliganStage, preEndOrder: s.preEndOrder,
-        preEndIdx: s.preEndIdx, preEndDone: s.preEndDone,
+        mulliganStage: s.mulliganStage,
+        preEndTurn: (s.preEndTurn === undefined ? null : s.preEndTurn),
+        preEndPassed: s.preEndPassed || [],
         history: s.history || [], cardsPlayedCount: s.cardsPlayedCount || 0,
         logs: s.logs || []
     });
@@ -5307,14 +5773,10 @@ _markPendingFlip(bi) {
     }
 }
 
-/* ★ v3.9: 本輪結算後才真正重算所有過去陣地勝負。
-   必須在 settle() 的 game-over 檢查「之前」呼叫。 */
+/* ★ v3.7: 重算「所有」過去陣地（r1 → 上一輪）的勝負。
+   preend 結束後、當前陣地結算「之前」呼叫；settle 後也會再呼叫一次（保險）。 */
 _recheckAllPastBattlefields() {
-    if (!this._pendingFlips) return;
-    const keys = Object.keys(this._pendingFlips).map(Number);
-    if (keys.length === 0) return;
-
-    for (const bi of keys) {
+    for (let bi = 0; bi < this.currentBfIndex; bi++) {
         const hist = this.history.find(h => h.round === bi + 1);
         if (!hist) continue;
         const oldWinner = hist.winner;
@@ -5349,15 +5811,148 @@ _recheckAllPastBattlefields() {
     this._pendingFlips = {};
 }
 
+/* ★ v3.7: 快照「陣地結算前」的疑兵數量（供空城 / 巧計使用）。
+   必須在支付與翻面之前拍，否則疑兵會被移除、計數歸零。 */
+_takeYbSnapshot() {
+    this._ybSnapshot = {};
+    this._ybArchiveSnapshot = {};
+    for (let pi = 0; pi < this.numPlayers; pi++) {
+        this._ybSnapshot[pi] = {};
+        for (let bi = 0; bi < this.fieldCount; bi++) {
+            this._ybSnapshot[pi][bi] = this.players[pi].fields[bi].filter(c =>
+                (c.data.skills||[]).includes('疑兵')
+            ).length;
+        }
+        this._ybArchiveSnapshot[pi] = this.archive.filter(c =>
+            (c.data.skills||[]).includes('疑兵') && c.originalOwner === pi
+        ).length;
+    }
+}
+/* ★ v3.7: 檢查是否有人（或隊伍）已達 2 勝 → 回傳贏家座位陣列，否則 null */
+_collectGameWinners() {
+    if (this.teams) {
+        for (const team of this.teams) {
+            const teamWins = team.reduce((s, seat) => s + this.players[seat].wins, 0) / team.length;
+            if (teamWins >= 2) return team.slice();
+        }
+        return null;
+    }
+    for (let pi = 0; pi < this.numPlayers; pi++) {
+        if (this.players[pi].wins >= 2) return [pi];
+    }
+    return null;
+}
+/* ★ v3.7: 結束遊戲（finishPreEnd 翻轉致勝 / settle 共用格式） */
+_endGameWithWinners(winningPlayers, viaFlip) {
+    this.gameWinner = winningPlayers[0];
+    this.state = 'gameover';
+    const winNames = winningPlayers.map(p => this.players[p].name).join(' & ');
+    this.addLog('sys', viaFlip
+        ? `═══ ${winNames} 藉過去陣地翻轉取得最終勝利！═══`
+        : `═══ ${winNames} 贏得最終勝利！═══`);
+    this._recordGameStats(winningPlayers);
+    for (let pi = 0; pi < this.numPlayers; pi++) {
+        if (!this.isAI(pi)) continue;
+        const won = winningPlayers.includes(pi);
+        this._sTO(() => this.aiChatTrigger(pi, 'gameover', { won }), 900 + this.rng() * 800);
+    }
+    this.recordEvent('game_over', {
+        winner: this.gameWinner,
+        winners: winningPlayers,
+        totalRounds: this.round,
+        viaFlip: !!viaFlip
+    });
+    this.saveReplayToLocal();
+    const allBots = this.players.every(p => p.botType);
+    if (allBots && this.cfg.autoExport) this._sTO(() => this.downloadReplay(true), 400);
+    this.render();
+}
+/* ★ 當一張連環牌受到【燃燒】或【傷害】時呼叫
+   注意：純「戰力流失」（驅虎 -1、權謀 -1 等）不會呼叫此函式 */
+_notifyLianhuan(card, ownerPi, bi) {
+    if (!card || !card.lianhuan || card.faceDown) return;
+    if (card._lianhuanFiring) return;   // 防遞迴（保險）
+    card._lianhuanFiring = true;
+    try {
+        this._propagateLianhuan(ownerPi, bi, [card]);
+    } finally {
+        card._lianhuanFiring = false;
+    }
+}
 applyBurn(pi) {
     const p = this.players[pi];
     let n = 0;
-    for (let bi=0; bi<this.fieldCount; bi++) {
+    const triggers = [];  // { bi, card } — 被燒且帶【連環】的牌
+    for (let bi = 0; bi < this.fieldCount; bi++) {
         p.fields[bi].forEach(c => {
-            if (c.burn && !c.faceDown) { c.mod=(c.mod||0)-1; n++; }
+            if (c.burn && !c.faceDown) {
+                c.mod = (c.mod || 0) - 1;
+                n++;
+                if (c.lianhuan) triggers.push({ bi, card: c });
+            }
         });
     }
-    if (n>0) this.addLog(pi, `🔥 【燃燒】${n} 張卡牌各受到 1 點燃燒傷害`);
+    if (n > 0) this.addLog(pi, `🔥 【燃燒】${n} 張卡牌各損失 1 點戰力`);
+
+    // ★ 規則 C：每張被燒的連環牌獨立傳播 1 次給「其他」連環牌
+    if (triggers.length > 0) {
+        // 依陣地分組（同陣地內的連環一起處理）
+        const byBi = {};
+        triggers.forEach(t => {
+            if (!byBi[t.bi]) byBi[t.bi] = [];
+            byBi[t.bi].push(t.card);
+        });
+        for (const biStr of Object.keys(byBi)) {
+            this._propagateLianhuan(pi, parseInt(biStr, 10), byBi[biStr]);
+        }
+    }
+}
+
+/* ★ v3.7: 連環傳播（規則 C）
+   - 每張 source 各對「其他連環牌」傳 1 點戰力流失
+   - 輸出永遠是「戰力流失」而非「傷害」→ 不受督戰／護衛影響、不觸發剛烈
+   - 若該陣地有【堅守】且劣勢 → 整批傳播被擋下
+   - source 不傳給自己；接收方不會再觸發新一輪傳播（防遞迴）
+   - N 張連環都被燒時：每張會被其他 N-1 張各傳 1 次（合計 N-1） */
+_propagateLianhuan(ownerPi, bi, sources) {
+    const p = this.players[ownerPi];
+    if (!p) return 0;
+    const field = p.fields[bi];
+    // ★ 只有 hp > 0 的連環牌能接收傳播
+    const receivers = field.filter(c =>
+        c.lianhuan && !c.faceDown && c.lianhuanHp > 0);
+    if (receivers.length === 0) return 0;
+
+    // 【堅守】檢查：己方劣勢時保護整片陣地
+    const hasJianshou = field.some(c =>
+        !c.faceDown && (c.data.skills||[]).includes('堅守'));
+    if (hasJianshou) {
+        const oppPi = this.opponentOf(ownerPi);
+        const myTotal  = this.fieldPower(ownerPi, bi, false, true);
+        const oppTotal = this.fieldPower(oppPi, bi, false, true);
+        if (myTotal <= oppTotal) {
+            this.addLog(ownerPi, `【連環】：本陣有【堅守】生效，傳播被擋下`);
+            return 0;
+        }
+    }
+
+    let total = 0;
+    for (const src of sources) {
+        // 來源必須仍是連環（未被移除、未翻面）
+        if (!src.lianhuan || src.faceDown) continue;
+        for (const recv of receivers) {
+            if (recv === src) continue;       // 不傳給自己
+            if (recv.lianhuanHp <= 0) continue; // 中途耗盡就跳過
+            recv.mod = (recv.mod || 0) - 1;
+            recv.lianhuanHp -= 1;
+            total++;
+        }
+    }
+    if (total > 0) {
+        this.addLog(ownerPi,
+            `【連環】：${sources.length} 張來源傳播，共 ${total} 次戰力流失`);
+    }
+    return total;
 }
 /* 卡片威脅值：戰力 + 技能影響力。用於 斬將/斬除/毒士 等移除技能的目標選擇。 */
 cardThreatValue(c) {
@@ -5368,7 +5963,7 @@ cardThreatValue(c) {
     /* 持續性場上壓力（每回合都作用） */
     const PERSISTENT = ['威嚇','嘲諷','涉獵','力竭','火攻','連營','斷路','伏兵'];
     /* 一次性強力觸發（進場/結算時造成大影響） */
-    const IMPACT     = ['止啼','識破','烈矢','飛矢','霸王','火船','奪銳','劫糧','虎痴','突圍','鐵騎','烈刃','建言','英魂'];
+    const IMPACT     = ['止啼','識破','烈矢','飛矢','霸王','火船','潰銳','劫糧','虎痴','突圍','鐵騎','烈刃','建言','英魂'];
     /* 上將身分本身是威脅 */
     if (d.isGeneral) v += 4;
     if (sk.some(s => PERSISTENT.includes(s))) v += 3;
@@ -5420,6 +6015,7 @@ applyDamage(target, amount, targetPi, targetBi, sourceInst = null) {
         this.addLog(targetPi, `🛡️ ${guard.data.name}【護衛】：替 ${target.data.name} 減免1（友軍實受 ${reduced}，自身受1，護衛已用）`);
         return reduced;
     }
+    target._tookDamage = true;	
     target.mod = (target.mod||0) - amount;
 
     // 剛烈（鎖定技）：自己受到戰力傷害時，使傷害來源受到相同點數傷害
@@ -5463,6 +6059,7 @@ _isJianshouProtected(targetCard, ownerPi, bi) {
 }
 flashRemove(inst) {
     if (!inst || !inst.data) return;
+    if (this._backgroundMode) return;   // ★ bg 模式不需動畫
     try {
         const el = document.createElement('div');
         el.className = 'removal-clone';
@@ -5494,11 +6091,11 @@ _triggerPreTurnFlip() {
         }
         const fus = ownerP.fields[bi].filter(c =>
             c.faceDown && !c.silenced &&
-            ((c.data.skills||[]).includes('冷箭') || (c.data.skills||[]).includes('伏擊')));
+            ((c.data.skills||[]).includes('冷箭') || (c.data.skills||[]).includes('伏擊') || PRE_TURN_FLIP_IDS.includes(c.data.id)));
         for (const c of fus) {
             c.faceDown = false;
             c.fresh = true;
-            this.addLog(owner, `[R${this.round}] 冷箭：${c.data.name} 翻開`);
+            this.addLog(owner, `[R${this.round}] ${(c.data.skills||[]).includes('冷箭')?'冷箭':((c.data.skills||[]).includes('伏擊')?'伏擊':'伏兵')}：${c.data.name} 翻開`);
             if (c.data.onFlip) c.data.onFlip(this._ctxFor(owner, c, bi, null));
         }
     }
@@ -5520,10 +6117,71 @@ _triggerPangtongLianhuan() {
     const enemies = this.enemiesOf(pi);
     for (const e of enemies) {
         this.players[e].fields[bi].forEach(c => {
-            if (!c.faceDown) { c.lianhuan = true; n++; }
+            if (!c.faceDown) { c.lianhuan = true; c.lianhuanHp = 3; n++; }
         });
     }
     this.addLog(pi, `[R${this.round}] 龐統【連環】：${n} 名敵軍陷入連環`);
+}
+/* ★ v3.7: 孫堅【英魂】準備 → 啟動（回合開始時） */
+_triggerSunjianYinghun(pi) {
+    const bi = this.currentBfIndex;
+    const sj = this.players[pi].fields[bi].find(c =>
+        c.data.id === 'sunjian' && c.preparing);
+    if (!sj) return;
+    sj.preparing = false;
+    if (sj.silenced) {
+        this.addLog(pi, `[R${this.round}] 孫堅【英魂】：準備期間失去技能，效果不觸發`);
+        return;
+    }
+    sj.activated = true;
+    this._runYinghunRemoval(pi, sj, bi);
+}
+/* ★ v3.7: 孫堅【英魂】準備 → 啟動（對手放棄時） */
+_triggerSunjianYinghunOnPass(pi) {
+    const bi = this.currentBfIndex;
+    const sj = this.players[pi].fields[bi].find(c =>
+        c.data.id === 'sunjian' && c.preparing && !c.silenced);
+    if (!sj) return;
+    sj.preparing = false;
+    sj.activated = true;
+    this.addLog(pi, `[R${this.round}] 孫堅【英魂】：對手放棄，啟動！`);
+    this._runYinghunRemoval(pi, sj, bi);
+}
+/* ★ v3.7: 孫堅【英魂】的移除邏輯（AI 自動選、人類用 modal 或自動） */
+_runYinghunRemoval(pi, sj, bi) {
+    const myPower = this.getPower(sj, pi, bi, false);
+    const threshold = myPower - 4;
+    const oppPi = this.opponentOf(pi);
+    const candidates = this.players[oppPi].fields[bi].filter(c => {
+        if (c.faceDown || c.data.isGeneral) return false;
+        if (this._isJianshouProtected(c, oppPi, bi)) return false;
+        const ep = this.getPower(c, oppPi, bi, false);
+        return ep <= threshold;
+    });
+    if (candidates.length === 0) {
+        this.addLog(pi, `孫堅【英魂】：無可移除目標`);
+        return;
+    }
+    // AI 或巢狀 → 自動挑
+    if (this.isAI(pi) || this._inExtraPlay) {
+        let best = candidates[0], bestV = this.cardThreatValue(best);
+        candidates.forEach(c => {
+            const v = this.cardThreatValue(c);
+            if (v > bestV) { best = c; bestV = v; }
+        });
+        this.flashRemove(best);
+        this.players[oppPi].fields[bi].splice(this.players[oppPi].fields[bi].indexOf(best), 1);
+        this.archive.push(best);
+        this.addLog(pi, `孫堅【英魂】：移除 ${best.data.name}（威脅值 ${bestV}）`);
+        this.recordEvent('yinghun', { player: pi, targetId: best.data.id });
+        return;
+    }
+    // 人類玩家 → 復用關羽斬將的 modal
+    this.guanyu = {
+        pi, selfUid: sj.uid, bi,
+        candidates: candidates.map(c => c.uid), sel: null
+    };
+    this.render();
 }
 /* 判斷是否應該正面進場（預設為埋伏）。 ... */
 _shouldPlayFaceUp(card, pi, bi) {
@@ -5616,16 +6274,25 @@ qhCancel() {
     this._triggerTurnStartSkills(pi);
 }
 
+/* ★ v3.7: 陸遜【連營】改為「只失去連營、保留謙遜」，且每場限用一次。
+   旗標掛在玩家身上（lianyingUsed）而不是卡牌實例：_sendCard 可能把牌送回牌堆底、
+   reshuffle 也會清空實例旗標，掛在實例上會被重抽洗掉而違反「每場一次」。 */
+_findLianyingUser(pi, bi) {
+    if (!this.players[pi] || this.players[pi].lianyingUsed) return null;
+    return this.players[pi].fields[bi].find(c =>
+        !c.faceDown && !c.silenced && (c.data.skills||[]).includes('連營')) || null;
+}
 openLianying() { if(this.phase!=='turn'||this.cover||this.countdown!==null)return; this.lianying={sel:null}; this.render(); }
 lySelect(uid) { if(!this.lianying)return; this.lianying.sel=this.lianying.sel===uid?null:uid; this.render(); }
 lyConfirm() {
     if(!this.lianying||!this.lianying.sel)return;
     const pi=this.current,bi=this.currentBfIndex;
     const target=this.players[this.opponentOf(pi)].fields[bi].find(c=>c.uid===this.lianying.sel);
-    const lu=this.players[pi].fields[bi].find(c=>!c.faceDown&&!c.silenced&&(c.data.skills||[]).includes('連營'));
+    const lu=this._findLianyingUser(pi,bi);
     if(!target||!lu){this.lianying=null;this.render();return;}
-    target.burn=true;lu.silenced=true;
-    this.addLog(pi,`[R${this.round}] 陸遜【連營】：${target.data.name} 燃燒，陸遜沉默`);
+    target.burn=true;this.players[pi].lianyingUsed=true;
+    this.addLog(pi,`[R${this.round}] 陸遜【連營】：${target.data.name} 燃燒，失去【連營】`);
+    this.recordEvent('lianying',{player:pi,targetId:target.data.id});
     this.lianying=null;this.render();
 }
 lyCancel() { this.lianying=null; this.render(); }
@@ -5747,6 +6414,7 @@ _xunyuReduceSecondary(pi, bi) {
     }
     target.mod = (target.mod || 0) - 1;
     this.addLog(pi, `【驅虎】：${target.data.name} 戰力 -1`);
+    // ★ 純戰力流失不觸發連環（只有燃燒/傷害觸發）
     this.recordEvent('quhu_reduce', { player: pi, targetId: target.data.id });
 }
 xunyuSelect(uid) { if(!this.xunyu)return; this.xunyu.sel = (this.xunyu.sel === uid) ? null : uid; this.render(); }
@@ -5807,7 +6475,90 @@ guanyuSkip() {
     this.guanyu=null;
     if(inst)this.doPlayAfterEntry(g.pi,inst,false,g.bi); else this.render();
 }
-
+/* ★ v3.7: 孫尚香【聯姻】 */
+liangyuanSelect(uid) {
+    if (!this.liangyuan) return;
+    this.liangyuan.sel = (this.liangyuan.sel === uid) ? null : uid;
+    this.render();
+}
+liangyuanConfirm() {
+    if (!this.liangyuan || !this.liangyuan.sel) return;
+    const ly = this.liangyuan;
+    const target = this.players[ly.pi].fields[ly.bi].find(c => c.uid === ly.sel);
+    const selfInst = this.players[ly.pi].fields[ly.bi].find(c => c.uid === ly.selfUid);
+    if (target) {
+        target.wedded = true;
+        if (selfInst) {
+            selfInst.wedded = true;      // ★ 孫尚香自己也獲得連理
+            selfInst.silenced = true;
+        }
+        this.addLog(ly.pi, `孫尚香【聯姻】：與 ${target.data.name} 締結連理`);
+        this.recordEvent('liangyuan', { player: ly.pi, targetId: target.data.id });
+    }
+    this.liangyuan = null;
+    if (selfInst) this.doPlayAfterEntry(ly.pi, selfInst, false, ly.bi);
+    else this.render();
+}
+liangyuanSkip() {
+    if (!this.liangyuan) return;
+    const ly = this.liangyuan;
+    const selfInst = this.players[ly.pi].fields[ly.bi].find(c => c.uid === ly.selfUid);
+    if (selfInst) selfInst.silenced = true;
+    this.addLog(ly.pi, `孫尚香【聯姻】：略過`);
+    this.liangyuan = null;
+    if (selfInst) this.doPlayAfterEntry(ly.pi, selfInst, false, ly.bi);
+    else this.render();
+}
+/* ★ v3.7: 陸抗【繼承】 */
+lukangSelect(uid) {
+    if (!this.lukang) return;
+    this.lukang.sel = (this.lukang.sel === uid) ? null : uid;
+    this.render();
+}
+lukangConfirm() {
+    if (!this.lukang || !this.lukang.sel) return;
+    const lk = this.lukang;
+    const target = this.players[lk.pi].fields[lk.bi].find(c => c.uid === lk.sel);
+    const selfInst = this.players[lk.pi].fields[lk.bi].find(c => c.uid === lk.selfUid);
+    if (target && selfInst) {
+        const bonus = target._expectedBonus || 0;
+        if (bonus > 0) {
+            selfInst.mod = (selfInst.mod || 0) + bonus;
+            this.addLog(lk.pi, `陸抗【繼承】：從 ${target.data.name} 繼承 +${bonus} 戰力`);
+            this.recordEvent('jicheng', { player: lk.pi, targetId: target.data.id, gain: bonus });
+        } else {
+            this.addLog(lk.pi, `陸抗【繼承】：${target.data.name} 無額外加成`);
+        }
+    }
+    this.players[lk.pi].fields[lk.bi].forEach(c => delete c._expectedBonus);
+    this.lukang = null;
+    if (selfInst) this.doPlayAfterEntry(lk.pi, selfInst, false, lk.bi);
+    else this.render();
+}
+lukangSkip() {
+    if (!this.lukang) return;
+    const lk = this.lukang;
+    const selfInst = this.players[lk.pi].fields[lk.bi].find(c => c.uid === lk.selfUid);
+    this.players[lk.pi].fields[lk.bi].forEach(c => delete c._expectedBonus);
+    this.addLog(lk.pi, `陸抗【繼承】：略過`);
+    this.lukang = null;
+    if (selfInst) this.doPlayAfterEntry(lk.pi, selfInst, false, lk.bi);
+    else this.render();
+}
+/* ★ v3.7: 孫皓【苛政】 */
+sunhaoPick(cost) {
+    if (!this.sunhao) return;
+    const sh = this.sunhao;
+    this.kezheng = { pi: sh.pi, bi: sh.bi, cost: parseInt(cost, 10) };
+    const selfInst = this.players[sh.pi].fields[sh.bi].find(c => c.uid === sh.selfUid);
+    if (selfInst) {
+        this.addLog(sh.pi, `${selfInst.data.name}【苛政】：指定糧草 ${this.kezheng.cost}`);
+        this.recordEvent('kezheng', { player: sh.pi, cost: this.kezheng.cost });
+    }
+    this.sunhao = null;
+    if (selfInst) this.doPlayAfterEntry(sh.pi, selfInst, false, sh.bi);
+    else this.render();
+}
 /* ============ 貂蟬【離間】 ============ */
 diaochanChoose(useRemove) {
     const dc = this.diaochan;
@@ -6022,6 +6773,12 @@ doPass() {
     this.passOrder.push(pi);
     this.addLog(pi, `[R${this.round}] ${p.name} 放棄跟牌`);
     this.recordEvent('pass', { player: pi, foodAfter: p.food });
+	    // ★ v3.7: 對手放棄 → 檢查我方孫堅【英魂】
+    for (let x = 0; x < this.numPlayers; x++) {
+        if (x === pi) continue;
+        if (this.areAllies(pi, x)) continue;
+        this._triggerSunjianYinghunOnPass(x);
+    }
     this.selected = null; this.selectedField = null;
     if (this.players.every(pl => pl.passed)) {
         if (!this._simaYiLastChanceUsed) {
@@ -6092,6 +6849,7 @@ advanceTurn() {
     this._resetTurnStartFlags(this.current);
     this._triggerPreTurnFlip();
     this._triggerPangtongLianhuan();
+    this._triggerSunjianYinghun(this.current);
     this._triggerTurnStartSkills(this.current);
     this._logTurnStart();
     this.render();
@@ -6108,6 +6866,12 @@ _logTurnStart() {
     });
 }
 
+/* ★ v3.7 preend 重製：
+   - 結算前 = 迷你出牌階段，輪流行動（與 turn 相同）。
+   - 行動順序依「本輪先後手」：先手方先行動。
+   - 只有 PREEND_SKILLS（奇襲/奇謀/奔襲）卡片可以打出；馬岱/徐榮 特許以埋伏方式打出。
+   - 放棄後即退出結算前；對方仍可繼續出牌，直到也放棄。
+   - 雙方都放棄 → finishPreEnd()：先重算所有過去陣地，再結算當前陣地。 */
 startPreEnd() {
     console.log('[startPreEnd]', {
         round: this.round,
@@ -6116,182 +6880,205 @@ startPreEnd() {
         passed: this.players.map(p => p.passed)
     });
     this.phase = 'preend';
-    // 🐛 v3.1 修正：原版只把主動 pass 的玩家放進 preEndOrder，
-    // 導致「因對手 pass 而被動進入」的玩家完全沒有 preend 出牌機會。
-    // 規則：「後放棄者先有機會在結算前再出一張牌，之後換先放棄者。」
-    // 因此：
-    //   ① 未主動 pass 的玩家（仍想繼續）視為「最後放棄」→ 排最前面
-    //   ② 已主動 pass 的玩家按放棄順序反轉（後放棄者先出）
-    const activePlayers = [];
-    const passivePlayers = [];
-    for (let step = 0; step < this.numPlayers; step++) {
-        const pi = (this.roundFirstPlayer + step) % this.numPlayers;
-        if (this.players[pi].passed) passivePlayers.push(pi);
-        else activePlayers.push(pi);
-    }
-    passivePlayers.sort((a, b) => {
-        const ia = this.passOrder.indexOf(a);
-        const ib = this.passOrder.indexOf(b);
-        return ib - ia;   // 後放棄者先出
-    });
-    const order = [...activePlayers, ...passivePlayers];
-    // ★ defensive: 2P must always produce 2 slots; otherwise treat as a bad state.
-    if (order.length < this.numPlayers) {
-        // fall back to seating order rather than risk a 1-length preEnd
-        order.length = 0;
-        for (let i = 0; i < this.numPlayers; i++) order.push((this.roundFirstPlayer + i) % this.numPlayers);
-    }
-    this.preEndOrder = order;
-    this.preEndDone = order.map(() => false);
-    this.preEndIdx = 0;
-    this.cover = false;
+    this.preEndPassed = new Array(this.numPlayers).fill(false);
+    this.preEndTurn = this.roundFirstPlayer;   // 先手方先行動
+    this.selected = null; this.selectedField = null;
     this.addLog('bat', '═══ 陣地結算前 ═══');
-    this.render();
-    if (this.isAI(this.preEndOrder[this.preEndIdx])) {
+    this.recordEvent('preend_start', { firstActor: this.preEndTurn });
+    const actor = this.preEndTurn;
+    if (this.isAI(actor)) {
+        this.cover = false;
+        this.render();
         this._sTO(() => this.doPreEndAI(), 900);
+    } else if (this.netMode) {
+        this.cover = false;
+        this.render();
+    } else {
+        // 熱座模式：蓋牌等待裝置交接
+        this.players.forEach(pl => pl.hand.forEach(c => c.justDrawn = false));
+        this.cover = true;
+        this.render();
     }
 }
+/* 放棄（結算前）：放棄後退出 preend，換下一位未放棄者 */
 preEndAct() {
     if (this.phase !== 'preend' || this.cover || this.countdown !== null) return;
-    if (this.preEndDone[this.preEndIdx]) return;                 // 🛡️ 新增：防止重複觸發
-    const pi = this.preEndOrder[this.preEndIdx];
-    if (pi === undefined) return;                                 // 🛡️ 新增：安全網
-    this.preEndDone[this.preEndIdx] = true;
-    this.addLog(pi, `${this.players[pi].name} 放棄出牌`);
-    if (this.preEndIdx < this.preEndOrder.length - 1) {
-        const nextPi = this.preEndOrder[this.preEndIdx + 1];
-        if (this.netMode) {
-            setTimeout(() => this.handoff(), 300);
-        } else if (!this.isAI(nextPi)) {
-            this.cover = true; this.render();
-        } else {
-            this._sTO(() => this.handoff(), 500);
-        }
-    } else this.settle();
+    const pi = this.preEndTurn;
+    if (pi === undefined || pi === null) return;
+    if (this.preEndPassed[pi]) return;
+    this.preEndPassed[pi] = true;
+    this.addLog(pi, `[R${this.round}·結算前] ${this.players[pi].name} 放棄出牌`);
+    this.recordEvent('preend_pass', { player: pi });
+    this._preEndAdvance(pi);
 }
-advancePreEnd() {
-    if (this.preEndIdx >= this.preEndOrder.length - 1) return;    // 🛡️ 新增：邊界防護
-    this.preEndIdx++; this.cover = false; this.render();
-    if (this.isAI(this.preEndOrder[this.preEndIdx])) {
-        if (this.aiTimer) clearTimeout(this.aiTimer);             // 🛡️ 新增：與 scheduleAI 共用同一個 timer
+/* preend 輪轉：找下一位未放棄者；都放棄 → finishPreEnd() */
+_nextPreEndActor(fromPi) {
+    for (let step = 1; step <= this.numPlayers; step++) {
+        const pi = (fromPi + step) % this.numPlayers;
+        if (!this.preEndPassed[pi]) return pi;
+    }
+    return null;
+}
+_preEndAdvance(fromPi) {
+    this.selected = null; this.selectedField = null;
+    const next = this._nextPreEndActor(fromPi);
+    if (next === null) { this.finishPreEnd(); return; }
+    this.preEndTurn = next;
+    if (this.isAI(next)) {
+        this.cover = false;
+        this.render();
+        if (this.aiTimer) clearTimeout(this.aiTimer);
         this.aiTimer = this._sTO(() => { this.aiTimer = null; this.doPreEndAI(); }, 900);
+    } else if (next === fromPi || this.netMode) {
+        // 同一位人類繼續出牌（其他人都已放棄），或網路模式各自畫面
+        this.cover = false;
+        this.render();
+    } else {
+        // 熱座：換人 → 蓋牌 + 交接畫面
+        this.players.forEach(pl => pl.hand.forEach(c => c.justDrawn = false));
+        this.cover = true;
+        this.render();
     }
 }
-/* v3.1 新增：AI 在結算前階段的出牌邏輯 */
+/* 裝置交接後揭示畫面（hotseat） */
+advancePreEnd() {
+    this.cover = false;
+    this.render();
+    this.scheduleAI();
+}
+/* ★ v3.7: 雙方放棄後 → 先重算所有過去陣地（r1 → 上一輪），再結算當前陣地 */
+finishPreEnd() {
+    this.preEndTurn = null;
+    this.addLog('bat', '═══ 結算前結束 — 重新檢查過去陣地 ═══');
+    this._takeYbSnapshot();
+    this._recheckAllPastBattlefields();
+    const winners = this._collectGameWinners();
+    if (winners) { this._endGameWithWinners(winners, true); return; }
+    this.settle();
+}
+/* 這張牌是否可在結算前階段打出（奇襲/奇謀/奔襲，外加特許的馬岱/徐榮） */
+isPreEndPlayable(inst) {
+    if (!inst || !inst.data) return false;
+    const sk = inst.data.skills || [];
+    return PREEND_CARD_IDS.includes(inst.data.id) || sk.some(s => PREEND_SKILLS.includes(s));
+}
+/* ★ v3.7: 馬岱/徐榮 只有 onFlip 效果 → 結算前必須背面進場才有作用 */
+_preEndMustAmbush(inst) {
+    return !!(inst && inst.data && PREEND_CARD_IDS.includes(inst.data.id));
+}
+/* ★ v3.7: 結算前出牌時，這張牌是否應以「埋伏」方式打出 */
+_preEndAsAmbush(inst) {
+    return !!(inst && inst.data && (inst.data.forceFaceDown || this._preEndMustAmbush(inst)));
+}
+/* ★ v3.7 重製：AI 在結算前階段的出牌邏輯（輪流制，只能打奇襲/奇謀/奔襲或埋伏馬岱/徐榮） */
 doPreEndAI() {
     if (this.phase !== 'preend') return;
-    const pi = this.preEndOrder[this.preEndIdx];
-    if (pi === undefined) return;
+    const pi = this.preEndTurn;
+    if (pi === undefined || pi === null) return;
     if (!this.isAI(pi)) return;
-    if (this.preEndDone[this.preEndIdx]) return;
+    if (this.preEndPassed[pi]) return;
 
     const p = this.players[pi];
     const bi = this.currentBfIndex;
     const oppPi = this.opponentOf(pi);
-    const opp = this.players[oppPi];
 
     // 目前可見戰力 + 埋伏牌估算（保守：每張背面 3 點預期）
     const myVisible = this.fieldPower(pi, bi, false);
     const oppVisible = this.fieldPower(oppPi, bi, false);
     const myFlipPotential = p.fields[bi].filter(c => c.faceDown).length * 3;
-    const oppFlipPotential = opp.fields[bi].filter(c => c.faceDown).length * 3.5;
+    const oppFlipPotential = this.players[oppPi].fields[bi].filter(c => c.faceDown).length * 3.5;
 
     const myEff = myVisible + myFlipPotential;
     const oppEff = oppVisible + oppFlipPotential;
 
     // 平手時先手方勝 — 後手任何平手都算輸，因此 +1 修正
     const iAmFirst = (this.roundFirstPlayer === pi);
-    const rawMargin = myEff - oppEff;
-    const margin = iAmFirst ? rawMargin : rawMargin - 1;
+    const margin = (myEff - oppEff) - (iAmFirst ? 0 : 1);
 
-    // 決定投入等級 0~5
-    let invest = 0;
-    if (margin >= 8) invest = 0;                            // 穩贏大
-    else if (margin >= 4) invest = 1;                       // 穩贏中
-    else if (margin >= 1) invest = 2;                       // 小贏
-    else if (margin >= -3) invest = 4;                      // 平手/小落後 → 全力追
-    else invest = 5;                                        // 大落後 → 梭哈
-
-    if (invest === 0) { this.preEndAct(); return; }
-	
-	// v3.6：非最後一輪 + 極大落後 → 直接放棄，保留資源給下一輪
-	const roundIsFinal = (this.round >= this.fieldCount);
-	if (!roundIsFinal && margin < -10 && p.hand.length >= 3) {
-		this.preEndAct();
-		return;
-	}
-
-    // 找可出的牌
+    // 只有奇襲/奇謀/奔襲卡（或馬岱/徐榮埋伏）可以在結算前打出
     const playable = p.hand.filter(c =>
-        c.data.forceFaceDown ? true : c.data.cost <= p.food
+        this.isPreEndPlayable(c) && (c.data.forceFaceDown || this._preEndMustAmbush(c) ? true : c.data.cost <= p.food)
     );
     if (playable.length === 0) { this.preEndAct(); return; }
 
-    // 依「效率」選牌
-    let best = null, bestScore = -Infinity;
+    // 對每張牌 × 每個可打陣地評分，選最佳組合
+    let best = null, bestField = bi, bestScore = -Infinity;
     for (const c of playable) {
-        let s = c.data.power;
-        if (c.data.isAmbush) s += 1;                 // 埋伏可延後付糧
-        if (invest >= 4) s = c.data.power * 2 - c.data.cost;
-        // 若為上將且還在 preend：價值更高（可翻盤）
-        if (c.data.isGeneral) s += 3;
-        if (s > bestScore) { bestScore = s; best = c; }
+        const allowed = this.getPlayableFields(c, pi, 'preend');
+        for (const f of allowed) {
+            const s = this._scorePreEndPlacement(pi, c, f, margin);
+            if (s > bestScore) { bestScore = s; best = c; bestField = f; }
+        }
     }
-    if (!best) { this.preEndAct(); return; }
 
-    // 若最強的一張也追不上，pass 省資源
-    const projected = myVisible + (best.data.power || 0) + myFlipPotential;
-    if (projected + 1 < oppEff && invest < 5) {
+    // 能翻盤過去陣地 → 無條件打（翻盤 = 直接多一勝）
+    if (best && bestScore >= 22) {
+        this.doPreEndPlay(best, this._preEndAsAmbush(best), bestField);
+        return;
+    }
+
+    // 非最後一輪 + 極大落後 → 放棄當前陣地，保留資源給下一輪
+    const roundIsFinal = (this.round >= this.fieldCount);
+    if (!roundIsFinal && margin < -10 && p.hand.length >= 3) {
         this.preEndAct();
         return;
     }
 
-    // 判斷正面或埋伏
-    let asAmbush = false;
-    if (best.data.forceFaceDown) asAmbush = true;
-    else if (!this.canPlayNormally(best, pi) && this.canPlayAmbush(best, pi)) asAmbush = true;
-    else if (this.canPlayAmbush(best, pi) && !this._shouldPlayFaceUp(best, pi, bi)) asAmbush = true;
-
-    // ★ v3.9: 奇襲(魏延/鄧艾)可在結算前打於任一陣地。
-    // 優先選「能翻盤」的陣地：過去陣地首選，未來次之，當前最保守。
-    let targetBi = bi;
-    if ((best.data.skills || []).includes('奇襲')) {
-        const allowed = this.getPlayableFields(best, pi, 'preend');
-        let bestField = bi, bestFieldScore = -Infinity;
-        for (const f of allowed) {
-            const myF = this.fieldPower(pi, f, false);
-            const oppF = this.fieldPower(this.opponentOf(pi), f, false);
-            const projected = myF + (best.data.power || 0);
-            let s;
-            if (f < this.currentBfIndex) {
-                // 過去陣地：翻盤最有價值
-                const hist = this.history.find(h => h.round === f + 1);
-                const wasFirst = hist && hist.firstPlayer === pi;
-                if (myF < oppF && projected > oppF) s = 40;                  // 直接翻盤
-                else if (myF < oppF && projected === oppF && wasFirst) s = 22; // 追平且先手 → 翻盤
-                else if (myF < oppF) s = -20;                                 // 還是輸 → 完全浪費
-                else s = -5;                                                 // 已勝 → 沒意義
-            } else if (f === this.currentBfIndex) {
-                s = 3;                                    // 當前陣地 = 一般
-            } else {
-                // 未來陣地：預先布局
-                if (myF < oppF && projected > oppF) s = 25;
-                else if (myF < oppF && projected === oppF && this.roundFirstPlayer === pi) s = 12;
-                else if (myF < oppF) s = -8;
-                else s = 2;
-            }
-            if (s > bestFieldScore) { bestFieldScore = s; bestField = f; }
+    if (!best || bestScore <= 0) { this.preEndAct(); return; }
+    this.doPreEndPlay(best, this._preEndAsAmbush(best), bestField);
+}
+/* 結算前出牌評分：過去陣地(翻盤) > 當前陣地(追分) > 未來陣地(布局) */
+_scorePreEndPlacement(pi, c, f, margin) {
+    const bi = this.currentBfIndex;
+    const oppPi = this.opponentOf(pi);
+    const pow = c.data.power || 0;
+    const cost = c.data.cost || 0;
+    // ★ v3.7: 馬岱/徐榮（埋伏限定）— 價值來自結算時翻開的【斬除】，而非自身戰力
+    if (this._preEndMustAmbush(c)) {
+        const zf = this._predictZhanchuTargets(pi, f);
+        let s = pow - cost;                        // 翻開後自身戰力，扣掉結算時才要付的糧
+        if (zf.fodder.length > 0) {
+            const worst = zf.fodder.reduce((a, b) => ((b.data.power || 0) > (a.data.power || 0) ? b : a));
+            s += 6 + (worst.data.power || 0) * 2;  // 移除敵軍 = 相對戰力的雙倍 swing
+        } else if (zf.lastFaceUp) {
+            s += 4;                                // 無 1 糧目標：1 傷害 + 失去非鎖定技
         }
-        targetBi = bestField;
+        if (margin >= 4) s -= 6;                   // 已穩贏 → 不必多花一筆結算糧
+        return s;
     }
-    this.doPreEndPlay(best, asAmbush, targetBi);
+    if (f < bi) {
+        // 過去陣地：只有能翻盤才有意義
+        const myF = this.fieldPower(pi, f, false);
+        const oppF = this.fieldPower(oppPi, f, false);
+        const projected = myF + pow;
+        const hist = this.history.find(h => h.round === f + 1);
+        const wasFirst = hist && hist.firstPlayer === pi;
+        if (myF >= oppF) return -5;                          // 已勝 → 沒意義
+        if (projected > oppF) return 40;                     // 直接翻盤
+        if (projected === oppF && wasFirst) return 22;       // 追平且該輪先手 → 翻盤
+        return -20;                                          // 還是輸 → 浪費
+    }
+    if (f === bi) {
+        // 當前陣地：依落後程度決定投入
+        if (margin >= 4) return -1;                          // 穩贏 → 不浪費糧
+        if (margin >= 1) return pow - cost * 0.5;            // 小贏 → 保守加碼
+        return pow * 2 - cost;                               // 平手/落後 → 全力追
+    }
+    // 未來陣地：預先布局
+    const myF = this.fieldPower(pi, f, false);
+    const oppF = this.fieldPower(oppPi, f, false);
+    if (myF < oppF && myF + pow > oppF) return 12;
+    if (myF < oppF && myF + pow === oppF && this.roundFirstPlayer === pi) return 8;
+    return 2 - cost * 0.5;
 }
 
-/* v3.1 新增：在 preend 出牌的實作（與 doPlay 類似但狀態不同） */
+/* v3.1 新增 / v3.7 重製：在 preend 出牌的實作（與 doPlay 類似但狀態不同） */
 doPreEndPlay(inst, asAmbush, bi) {
-    const pi = this.preEndOrder[this.preEndIdx];
+    const pi = this.preEndTurn;
+    if (pi === undefined || pi === null) return;
     const p = this.players[pi];
     if (!inst || !p.hand.includes(inst)) { this.preEndAct(); return; }
+    if (!this.isPreEndPlayable(inst)) { this.preEndAct(); return; }   // 只有奇襲/奇謀/奔襲、馬岱/徐榮埋伏 可打
     const hasJieliangPre = p.fields[bi].some(c =>
         !c.faceDown && !c.silenced && (c.data.skills||[]).includes('借糧'));
     const effCost = (hasJieliangPre && inst.data.cost > 1) ? inst.data.cost - 1 : inst.data.cost;
@@ -6325,27 +7112,23 @@ doPreEndPlay(inst, asAmbush, bi) {
     });
 
     if (!asAmbush) this.runEntryTriggers(pi, inst, bi);
+    // ★ v3.7: 夏侯淵【奔襲】交換 — preend 才是真正能打到過去陣地的階段，這裡必須補上
+    this._benxiSwap(pi, inst, bi, asAmbush);
     this.applyBurn(pi);
     this.drawOne(pi);
 
-    // ★ v3.9: 若打在過去陣地，標記為待重新結算（翻轉延後至本輪結束）
+    // ★ v3.7: 若打在過去陣地，標記為待重新結算（finishPreEnd 會統一重算）
     if (!asAmbush && bi < this.currentBfIndex) this._markPendingFlip(bi);
 
-    this.preEndDone[this.preEndIdx] = true;
+    // ★ v3.7: 上將（甘寧）在結算前出牌後同樣自動放棄
+    if (!asAmbush && inst.data.isGeneral) {
+        this.preEndPassed[pi] = true;
+        this.addLog(pi, `[R${this.round}·結算前] ${inst.data.name}為上將！${p.name} 結算前停止出牌`);
+        this.recordEvent('general_pass', { player: pi, cardId: inst.data.id, phase: 'preend' });
+    }
 
-    // ★ v3.9 FIX: 不要手動 preEndIdx++（advancePreEnd 會再加一次，
-    // 導致跳過下一位、甚至越界 → 畫面卡住／顯示錯玩家視角）。
-    // 改用與 preEndAct() 相同的流程：交給 handoff() → advancePreEnd() 推進。
-    if (this.preEndIdx < this.preEndOrder.length - 1) {
-        const nextPi = this.preEndOrder[this.preEndIdx + 1];
-        if (this.netMode) {
-            setTimeout(() => this.handoff(), 300);
-        } else if (!this.isAI(nextPi)) {
-            this.cover = true; this.render();
-        } else {
-            this._sTO(() => this.handoff(), 500);
-        }
-    } else this.settle();
+    // ★ v3.7: 輪流制 — 交給下一位未放棄者；都放棄 → finishPreEnd()
+    this._preEndAdvance(pi);
 }
 
 /* ============ AI decision ============ */
@@ -6406,12 +7189,15 @@ decidePlayAI(pi) {
 
     // ★ v3.9: 諸葛亮硬性門檻 — 場上+手牌疑兵總數為 0 時不可出（否則只是 2/0 白板）
     const playable = p.hand.filter(c => {
+        // ★ v3.9 FIX: 苛政過濾 — 避免 AI 選到被苛政禁止的牌
+        if (this.kezheng && this.kezheng.bi === bi && c.data.cost !== this.kezheng.cost) {
+            return false;
+        }
         // ★ v3.7: 諸葛亮空城不再是 0 戰力白板 → 放寬硬性門檻
         if (c.data.id === 'zhugeliang') {
             const ybField = p.fields.flat().filter(x => (x.data.skills||[]).includes('疑兵')).length;
             const ybHand  = p.hand.filter(x => x !== c && (x.data.skills||[]).includes('疑兵')).length;
             if (ybField + ybHand === 0) {
-                // 完全沒疑兵時，若對手場上已有 6+ 戰力 → 送分，不出
                 if (this.fieldPower(this.opponentOf(pi), this.currentBfIndex, false) >= 6) return false;
             }
         }
@@ -6588,14 +7374,15 @@ maybeAutoQuanhengAI(pi) {
 }
 maybeAutoLianyingAI(pi) {
     const bi = this.currentBfIndex;
-    const lu = this.players[pi].fields[bi].find(c => !c.faceDown && !c.silenced && (c.data.skills||[]).includes('連營'));
+    const lu = this._findLianyingUser(pi, bi);
     if (!lu) return false;
     const targets = this.players[this.opponentOf(pi)].fields[bi].filter(c => !c.faceDown && !c.burn);
     if (targets.length === 0) return false;
     let target = targets[0];
     targets.forEach(t => { if (this.getPower(t, this.opponentOf(pi), bi, false) > this.getPower(target, this.opponentOf(pi), bi, false)) target = t; });
-    target.burn = true; lu.silenced = true;
-    this.addLog(pi, `[R${this.round}] 陸遜【連營】(AI)：${target.data.name} 燃燒`);
+    target.burn = true; this.players[pi].lianyingUsed = true;
+    this.addLog(pi, `[R${this.round}] 陸遜【連營】(AI)：${target.data.name} 燃燒，失去【連營】`);
+    this.recordEvent('lianying', { player: pi, targetId: target.data.id });
     return true;
 }
 maybeAutoJiushiAI(pi) {
@@ -6928,7 +7715,7 @@ scoreCardAI(c, pi, diff, ctx) {
             score += 4;
         }
     }
-    /* 張遼 奪銳/止啼：上將通用已算，加止啼對進場敵方的壓制 */
+    /* 張遼 潰銳/止啼：上將通用已算，加止啼對進場敵方的壓制 */
     if (d.id === 'zhangliao') {
         // 敵陣有 face-down 牌 → 止啼沒用（不會 onEnemyEnter）
         // 敵陣有正面牌 → 止啼會沉默下一張進場的
@@ -6941,10 +7728,10 @@ scoreCardAI(c, pi, diff, ctx) {
         if (lead > 3) score += 4;
         else if (lead > 0) score += 2;
     }
-    /* 張郃 巧變：劣勢時轉場（同孟獲） */
+    /* 張郃 巧變：劣勢時轉場，且每次轉場額外 +1 戰力（可連續累積） */
     if (d.id === 'zhanghe') {
         const lead = myPow - oppPow;
-        if (lead < -5) score += 5;   // 落後：轉場投資
+        if (lead < -5) score += 6;   // 落後：轉場投資，且每次轉場 +1 戰力可滾雪球
         else if (lead > 3) score += 2; // 領先：3/3 佔位
     }
     /* 于禁 警戒：進場翻開敵方蓋牌 + 沉默 + 2 傷，針對伏兵戰術 */
@@ -6980,7 +7767,7 @@ if ((d.skills || []).includes('反骨')) {
         const sk = d.skills || [];
         if (sk.includes('觀星')) score += 9;
         if (sk.includes('權衡')) score += 7;
-        if (sk.includes('連營')) score += 5;
+        if (sk.includes('連營') && !p.lianyingUsed) score += 5;
         if (sk.includes('設伏')) score += 6;
         if (sk.includes('酒詩')) score += 3;
     }
@@ -7051,8 +7838,8 @@ if ((d.skills || []).includes('反骨')) {
     const _enemyHasDanger = oppFieldNow.some(c => !c.faceDown && !c.silenced &&
         (c.data.skills||[]).some(s => ['督戰','堅守','隱忍','威嚇'].includes(s)));
 
-    /* ★ 甘寧【奇襲/劫營】AI 評分
-       奇襲：結算時優勢 → 對手棄1張
+    /* ★ 甘寧【潰銳/劫營】AI 評分
+       潰銳：結算時優勢 → 對手棄1張
        劫營：進場時打亂對手手牌 + -1糧，結算後返還 +1糧 +1牌 */
     if (d.id === 'ganning') {
         const foeHand = opp.hand.length;
@@ -7064,7 +7851,7 @@ if ((d.skills || []).includes('反骨')) {
         // 對手糧少時，-1糧影響更大
         if (opp.food <= 2) score += 4;
         else if (opp.food <= 4) score += 2;
-        // 對手已放棄 → 奇襲靠目前優勢判定，劫營仍有效
+        // 對手已放棄 → 潰銳靠目前優勢判定，劫營仍有效
         if (opp.passed && myPow > oppPow) score += 4;
         // 賽末點落後 → 急需要打亂對手
         if (ctx.mustWinThisRound && myPow < oppPow) score += 5;
@@ -7106,8 +7893,8 @@ if ((d.skills || []).includes('反骨')) {
     if (d.id === 'luxun') {
         const maxEnemyPower = oppFieldNow.filter(c=>!c.faceDown).reduce((m,c)=>Math.max(m, c.data.power+(c.mod||0)), 0);
         if (maxEnemyPower > d.power) score += 4;
-        if (_enemyVisCnt > 0) score += 3;         // 連營可指定
-        if (_enemyHasDanger) score += 4;          // 連營可壓制關鍵牌
+        if (!p.lianyingUsed && _enemyVisCnt > 0) score += 3;         // 連營可指定
+        if (!p.lianyingUsed && _enemyHasDanger) score += 4;          // 連營可壓制關鍵牌
     }
     /* 孫策 / 太史慈【驍勇】保底 +【霸王/飛矢】壓制 */
     if (d.id === 'sunce' || d.id === 'taishici') {
@@ -7546,7 +8333,7 @@ if ((d.skills || []).includes('反骨')) {
     }
     if (d.isGeneral && !d.forceFaceDown) {
         if (ctx.isFirstMoveOfRound) {
-            // v3.5：動態懲罰。若對手手牌多（挑襲/奪銳目標多），或我落後需要翻盤，
+            // v3.5：動態懲罰。若對手手牌多（挑襲/潰銳目標多），或我落後需要翻盤，
             // 開局懲罰降低
             let openPenalty = -50;
             if (p.hand.length >= 3 && opp.hand.length >= 4) openPenalty += 15;
@@ -7963,6 +8750,8 @@ _chatBubble(pi, text, delay = 0) {
 /* ============ AI 聊天觸發器（個性化） ============ */
 aiChatTrigger(pi, event, opts = {}) {
     if (this.netMode) return;
+    if (this._backgroundMode) return;   // ★ bg 模式不排台詞 timer
+    if (this._aiPaused) return;
     if (!this.aiTrashTalk) return;
     if (!this.isAI(pi)) return;
     const p = this.players[pi];
@@ -8113,26 +8902,12 @@ async settle() {
     this.phase = 'settle'; this.cover = false;
     console.log('[settle]', {
         round: this.round, roundFirstPlayer: this.roundFirstPlayer,
-        preEndOrder: this.preEndOrder, preEndIdx: this.preEndIdx,
+        preEndPassed: (this.preEndPassed || []).slice(),
         passed: this.players.map(p => p.passed)
     });
 
     // ★ v3.6: 快照「陣地結算前」的疑兵數量（供空城 / 巧計使用）
-    //   必須在支付與翻面之前拍，否則疑兵會被移除、計數歸零。
-    //   這讓「空城」「巧計」的數值等同於 PVP 中「陣地結算時」那一刻。
-    this._ybSnapshot = {};
-    this._ybArchiveSnapshot = {};
-    for (let pi = 0; pi < this.numPlayers; pi++) {
-        this._ybSnapshot[pi] = {};
-        for (let bi = 0; bi < this.fieldCount; bi++) {
-            this._ybSnapshot[pi][bi] = this.players[pi].fields[bi].filter(c =>
-                (c.data.skills||[]).includes('疑兵')
-            ).length;
-        }
-        this._ybArchiveSnapshot[pi] = this.archive.filter(c =>
-            (c.data.skills||[]).includes('疑兵') && c.originalOwner === pi
-        ).length;
-    }
+    this._takeYbSnapshot();
     const bi = this.currentBfIndex;
     this.addLog('bat', `═══ 【${BATTLEFIELDS[bi]}】陣地結算 ═══`);
     this.render();
@@ -8227,7 +9002,8 @@ async settle() {
 
     const order = [];
     for (let step = 0; step < this.numPlayers; step++) {
-        order.push((this.current + step) % this.numPlayers);
+        // ★ v3.7: 結算技能順序依「本輪先後手」，不是最後行動者
+        order.push((this.roundFirstPlayer + step) % this.numPlayers);
     }
     for (const pi of order) {
         const f = [...this.players[pi].fields[bi]];
@@ -8480,9 +9256,8 @@ nextRound() {
     // ★ v3.9 FIX: 這些是 R1 遺留狀態，不清會污染 R2 的 preEnd / 隱忍判定
     this._simaYiLastChanceUsed = false;
     this._yinrenUsedThisRound = false;   // ★ v3.12
-    this.preEndOrder = null;
-    this.preEndIdx = 0;
-    this.preEndDone = [];
+    this.preEndTurn = null;
+    this.preEndPassed = [];
     this.countdown = null;
     if (this.countdownTimer) { clearTimeout(this.countdownTimer); this.countdownTimer = null; }
     const w = this.lastResult ? this.lastResult.winner : -1;
@@ -8507,14 +9282,23 @@ nextRound() {
     this._resetTurnStartFlags(this.current);
     this._triggerPreTurnFlip();
     this._triggerPangtongLianhuan();
+    this._triggerSunjianYinghun(this.current);
     this._triggerTurnStartSkills(this.current);
     this.render();
 }
 
 render() {
-    if (this._destroyed) return;                    // v3.6
+    if (this._destroyed) return;
     const app = document.getElementById('app');
-    if (!app) return;                               // v3.6
+    if (!app) return;
+
+    // ★ 背景模式：不寫 DOM，但讓 AI 繼續跑
+    if (this._backgroundMode) {
+        if (this.state === 'battle') this.scheduleAI();
+        if (this.state === 'gameover') this._scheduleAutoRestart();
+        return;
+    }
+
     if (this.state === 'flip') { app.innerHTML = this.renderFlip(); return; }
     if (this.state === 'mulligan') { app.innerHTML = this.renderMulligan(); return; }
     if (this.state === 'gameover') { app.innerHTML = this.renderGameOver(); return; }
@@ -8523,7 +9307,7 @@ render() {
         const el = document.querySelector('.log');
         if (el) el.scrollTop = el.scrollHeight;
         this.scheduleAI();
-    }, 30);
+    }, this._fastAiDebug ? 0 : 30);
 }
 _nextActorAfterCurrent() {
     for (let step = 1; step <= this.numPlayers; step++) {
@@ -8533,8 +9317,9 @@ _nextActorAfterCurrent() {
     return null;
 }
 scheduleAI() {
-    if (this._destroyed) return;                    // v3.6
+    if (this._destroyed) return;
     if (this.netMode) return;
+    if (this._aiPaused) return;                    // ★ 已暫停
     if (this.state !== 'battle') return;
     if (this.countdown !== null) return;
     if (this.scry || this.jianxiong || this.quanheng || this.lianying || this.guanyu || this.xunyu) return;
@@ -8555,14 +9340,238 @@ scheduleAI() {
         }
     } else if (this.phase === 'preend') {
         if (this.cover) return;
-        const pi = this.preEndOrder[this.preEndIdx];
-        if (this.isAI(pi)) {
+        const pi = this.preEndTurn;
+        if (pi !== null && pi !== undefined && this.isAI(pi) && !this.preEndPassed[pi]) {
             if (this.aiTimer) clearTimeout(this.aiTimer);
             this.aiTimer = this._sTO(() => { this.aiTimer = null; this.doPreEndAI(); }, 900);
         }
     }
 }
+/* ============ 解凍 AI（調試用） ============ */
+defreezeRecalculate() {
+    this.closeGameMenu();
+    this._aiPaused = false;
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.addLog('sys', '🐛 [解凍] 重新計算 AI');
+    this.render();
+    this.scheduleAI();
+}
+defreezeRedraw() {
+    this.closeGameMenu();
+    this.addLog('sys', '🐛 [解凍] 重新繪製');
+    this.render();
+}
+/* ★ 強制 AI 重抽手牌：丟光 AI 手上所有牌 → 抽等量新牌。
+   用於打破 AI「想太久 / 決策卡死」的狀態。
+   效果類似孫權【權衡】但作用於整副手牌。
+   ─ 只影響 AI 回合，人類玩家不受影響。
+   ─ 不影響場上、棄牌堆以外的任何狀態。 */
+defreezeForceRedraw() {
+    this.closeGameMenu();
 
+    if (this.state !== 'battle') {
+        this.addLog('sys', '🐛 [解凍] 目前不在對戰中，無法強制重抽');
+        this.render();
+        return;
+    }
+
+    const pi = (this.phase === 'preend' && this.preEndTurn !== null)
+        ? this.preEndTurn
+        : this.current;
+
+    if (pi === null || pi === undefined) {
+        this.addLog('sys', '🐛 [解凍] 目前沒有行動中的玩家');
+        this.render();
+        return;
+    }
+
+    const p = this.players[pi];
+    if (!p) return;
+
+    if (!this.isAI(pi)) {
+        this.addLog('sys', `🐛 [解凍] 目前是 ${p.name} 的回合，不是 AI，略過`);
+        this.render();
+        return;
+    }
+
+    const n = p.hand.length;
+    if (n === 0) {
+        this.addLog('sys', `🐛 [解凍] ${p.name} 手牌已空，無法重抽`);
+        this.render();
+        return;
+    }
+
+    // 記錄棄置的牌名（方便診斷）
+    const discardedNames = p.hand.map(c => c.data.name).join('、');
+
+    // ── 棄掉所有手牌（進棄牌堆 / 牌庫底，依設定）──
+    p.hand.forEach(c => this._sendCard(c));
+    p.hand = [];
+
+    // ── 抽等量新牌 ──
+    this.drawTo(pi, n);
+
+    // ── 清掉所有可能的「思考卡死」狀態 ──
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this._aiPaused = false;
+    this._aiPausedBeforeMenu = undefined;
+    this.selected = null;
+    this.selectedField = null;
+    this._handoffDoneThisTurn = false;
+    this.cover = false;
+    this._lastActivityTime = Date.now();
+
+    this.addLog('sys',
+        `🐛 [解凍] 強制 ${p.name} 重抽 ${n} 張手牌（棄置：${discardedNames}）`);
+
+    // 重繪 + 重新排程 AI
+    this.render();
+    this.scheduleAI();
+}
+defreezeSkipTurn() {
+    this.closeGameMenu();
+    if (this.phase === 'turn' && this.isAI(this.current) && !this.players[this.current].passed) {
+        this.addLog('sys', '🐛 [解凍] 跳過 AI 回合');
+        this.doPass();
+        return;
+    }
+    if (this.phase === 'preend' && this.preEndTurn !== null && this.preEndTurn !== undefined
+        && this.isAI(this.preEndTurn) && !this.preEndPassed[this.preEndTurn]) {
+        this.addLog('sys', '🐛 [解凍] 跳過 AI 結算前');
+        this.preEndAct();
+        return;
+    }
+    this.addLog('sys', '🐛 [解凍] 目前沒有 AI 回合可跳過');
+    this.render();
+}
+defreezeStopTurn() {
+    this.closeGameMenu();
+    this._aiPaused = true;
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    this.addLog('sys', '🐛 [解凍] 已暫停 AI（點「重新計算」可恢復）');
+    this.render();
+}
+minimizeToBackground() {
+    this.closeGameMenu();
+    this._backgroundMode = true;
+    this._aiPaused = false;                       // ★ 確保 AI 不會因為選單殘留狀態卡住
+    this._aiPausedBeforeMenu = undefined;
+    // ★ 從查看模式返回背景時，把速度調回原本的快速值
+    if (this._savedAiSpeedForView) {
+        this.aiSpeed = this._savedAiSpeedForView;
+        this._savedAiSpeedForView = null;
+    }
+    showSetup();
+}
+/* ============ 複製當前對局記錄 JSON（除錯用） ============ */
+copyCurrentBattleLog() {
+    try {
+        const g = this;
+        const state = {
+            _meta: {
+                exportedAt: new Date().toISOString(),
+                seed: g.seed,
+                version: 'v3.7-debug'
+            },
+            // ── 當前遊戲階段 ──
+            gameState: {
+                round: g.round,
+                state: g.state,
+                phase: g.phase,
+                current: g.current,
+                currentName: g.players[g.current] ? g.players[g.current].name : '?',
+                roundFirstPlayer: g.roundFirstPlayer,
+                battlefieldIndex: g.currentBfIndex,
+                battlefieldName: (typeof BATTLEFIELDS !== 'undefined' && BATTLEFIELDS[g.currentBfIndex]) || '?'
+            },
+            // ── 玩家狀態（含手牌名稱、戰場內容） ──
+            players: g.players.map((p, i) => ({
+                idx: i,
+                name: p.name,
+                botType: p.botType,
+                personality: p.personality,
+                food: p.food,
+                wins: p.wins,
+                passed: p.passed,
+                mustFaceUp: p.mustFaceUp,
+                handCount: p.hand.length,
+                handNames: p.hand.map(c => c.data ? c.data.name : '?'),
+                fields: p.fields.map((f, bi) => f.map(c => ({
+                    name: c.data ? c.data.name : '?',
+                    faceDown: !!c.faceDown,
+                    basePower: c.data ? c.data.power : 0,
+                    mod: c.mod || 0,
+                    silenced: !!c.silenced,
+                    burn: !!c.burn
+                })))
+            })),
+            // ── 凍結診斷：正在等哪個 modal ──
+            activeModals: {
+                scry:          !!g.scry,
+                guanyu:        !!g.guanyu,
+                xunyu:         !!g.xunyu,
+                quanheng:      !!g.quanheng,
+                lianying:      !!g.lianying,
+                jianxiong:     !!g.jianxiong,
+                diaochan:      !!g.diaochan,
+                liangyuan:     !!g.liangyuan,
+                lukang:        !!g.lukang,
+                sunhao:        !!g.sunhao,
+                paymentState:  !!g._paymentState,
+                lianying_sel:  g.lianying ? g.lianying.sel : null
+            },
+            // ── 凍結診斷：AI 是否被暫停、是否有計時器排程 ──
+            flags: {
+                aiPaused:         g._aiPaused,
+                aiPausedBeforeMenu: g._aiPausedBeforeMenu,
+                backgroundMode:   g._backgroundMode,
+                fastAiDebug:      g._fastAiDebug,
+                hasAiTimer:       !!g.aiTimer,
+                hasCountdown:     g.countdown !== null,
+                cover:            g.cover,
+                destroyed:        g._destroyed,
+                inExtraPlay:      !!g._inExtraPlay
+            },
+            // ── 凍結診斷：距離上次活動過了多久 ──
+            timing: {
+                lastActivityTime: g._lastActivityTime,
+                secondsSinceActivity: ((Date.now() - (g._lastActivityTime || Date.now())) / 1000).toFixed(2),
+                now: Date.now()
+            },
+            // ── 最近 40 條 log ──
+            recentLogs: g.logs.slice(-40),
+            // ── 完整對局事件歷史（從開局到現在） ──
+            replayEvents: (g.replay && g.replay.events) ? g.replay.events : [],
+            // ── 卡牌統計帳本 ──
+            gamePlays: (() => {
+                const out = {};
+                for (let i = 0; i < g.numPlayers; i++) {
+                    out[i] = g._gamePlays && g._gamePlays[i] ? Array.from(g._gamePlays[i]) : [];
+                }
+                return out;
+            })()
+        };
+
+        const json = JSON.stringify(state, null, 2);
+        const sizeKB = (json.length / 1024).toFixed(1);
+
+        // 優先使用 Clipboard API，失敗則 fallback
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(json).then(() => {
+                showCopyToast(`✅ 已複製對局記錄（${sizeKB} KB）`);
+            }).catch(() => {
+                fallbackCopy(json);
+                showCopyToast(`✅ 已複製對局記錄（${sizeKB} KB，fallback）`);
+            });
+        } else {
+            fallbackCopy(json);
+            showCopyToast(`✅ 已複製對局記錄（${sizeKB} KB）`);
+        }
+    } catch (e) {
+        console.error('copyCurrentBattleLog failed:', e);
+        alert('❌ 複製失敗：' + e.message);
+    }
+}
 cardHTML(inst, o = {}) {
     const d = inst.data;
     const fac = FACTION_INFO[d.faction];
@@ -8595,6 +9604,8 @@ cardHTML(inst, o = {}) {
         }
     }
     const generalTag = d.isGeneral ? '<span class="c-gen">上將</span>' : '';
+    const isFanpan = (d.skills || []).some(s => ['奇謀','奇襲','奔襲'].includes(s));
+    const fanpanTag = isFanpan ? '<span class="c-fanpan">逆轉</span>' : '';
     const tag = inst.betrayed && !inst.faceDown
         ? '<span class="c-tag" style="background:rgba(200,40,40,.85);">倒戈</span>'
         : '';
@@ -8602,9 +9613,23 @@ cardHTML(inst, o = {}) {
     const burn = inst.burn ? '<span class="c-tag" style="background:rgba(255,80,0,.85);left:auto;right:2px;bottom:36px;">燃</span>' : '';
 	const guardOff = inst.guardUsed ? '<span class="c-tag" style="background:rgba(100,100,100,.85);left:auto;right:2px;bottom:52px;">護衛×</span>' : '';
     const prepTag = inst.preparing ? '<span class="c-tag" style="background:rgba(60,140,220,.85);left:auto;right:2px;bottom:36px;">準備</span>' : '';
+    /* ★ v3.7: 連營已用盡的視覺標記。旗標在玩家身上，所以要反查這張牌屬於誰。 */
+    const lyOff = (d.skills || []).includes('連營') &&
+        this.players.some(pp => pp.lianyingUsed && pp.fields.some(f => f.includes(inst)))
+        ? '<span class="c-tag" style="background:rgba(100,100,100,.85);left:auto;right:2px;bottom:52px;">連營×</span>' : '';
+    /* ★ 連環燃料標籤：連3 / 連2 / 連1 / 連0 */
+    const lhTag = (() => {
+        if (!inst.lianhuan || inst.faceDown) return '';
+        const hp = Math.max(0, Math.min(3, inst.lianhuanHp || 0));
+        const cls = ['lh0','lh1','lh2','lh3'][hp];
+        return `<span class="c-lh ${cls}">連${hp}</span>`;
+    })();
+    const isAmbushCapable = d.isAmbush || (d.skills || []).includes('伏兵');
+    const ambushStrip = isAmbushCapable ? '<div class="c-ambush-strip"></div>' : '';	
     const skillNames = (d.skills || []).map(s => `<div>${s}</div>`).join('');
     return `<div class="card ${cls.join(' ')}" ${o.attr || ''}>
         <div class="card-front ${fac.cls}">
+            ${ambushStrip}
             <span class="c-cost">${d.cost}</span>
             <span class="c-fac">${fac.name}</span>
             <span class="c-skills">${skillNames}</span>
@@ -8612,7 +9637,7 @@ cardHTML(inst, o = {}) {
             ${d.title ? `<span class="c-title">${d.title}</span>` : ''}
             <span class="c-art">${d.emoji}</span>
             <span class="c-power" style="color:${pcls}">${powerMain}${modTxt ? `<span style="font-size:10px">${modTxt}</span>` : ''}</span>
-            ${generalTag}${tag}${sil}${burn}${guardOff}${prepTag}
+            ${generalTag}${fanpanTag}${tag}${sil}${burn}${guardOff}${prepTag}${lyOff}${lhTag}
         </div>
     </div>`;
 }
@@ -8758,6 +9783,52 @@ voteRematch() {
         this._doRematch();
     }
 }
+_scheduleAutoRestart() {
+    if (this._autoRestartQueued || this._autoRestartCancelled) return;
+    const isAIvsAI = this.players.every(p => p.botType);
+    if (!isAIvsAI || !this.cfg.autoRestart) return;
+    this._autoRestartQueued = true;
+    const delay = this._fastAiDebug
+        ? Math.max(50, this.cfg.autoRestartDelay || 100)
+        : Math.max(2000, this.cfg.autoRestartDelay || 2000);
+    const tickEvery = 500;
+    let remaining = delay;
+    const tick = () => {
+        if (this._destroyed) return;
+        remaining -= tickEvery;
+        const el = document.getElementById('autorestart-countdown');
+        if (el) el.textContent = Math.max(0, Math.ceil(remaining / 1000));
+        if (remaining > 0) this._autoRestartTick = setTimeout(tick, tickEvery);
+    };
+    this._autoRestartTick = setTimeout(tick, tickEvery);
+    this._autoRestartFire = setTimeout(() => {
+        this._autoRestartCancelled = true;
+        if (this._autoRestartTick) { clearTimeout(this._autoRestartTick); this._autoRestartTick = null; }
+        this.clearAllTimers();
+        try { clearTimeout(this._autoRestartFire); } catch (e) {}
+
+        let cfgCopy;
+        try {
+            cfgCopy = JSON.parse(JSON.stringify(this.cfg));
+        } catch (e) {
+            console.error('[auto-restart] cfg 複製失敗：', e);
+            return;
+        }
+        cfgCopy.seed = '';
+        cfgCopy._rematchVotes = undefined;
+        cfgCopy.autoRestart = true;
+        cfgCopy.autoExport = this.cfg.autoExport;
+
+        setTimeout(() => {
+            try {
+                window.game = new Game(cfgCopy);
+                console.log('[auto-restart] 新對局已開始');
+            } catch (e) {
+                console.error('[auto-restart] 建立新對局失敗：', e);
+            }
+        }, 0);
+    }, delay);
+}
 _doRematch() {
     if (this.role !== 'host') return;
     // Cancel any pending broadcast from the old game instance
@@ -8788,52 +9859,8 @@ renderGameOver() {
     // ★ 用「實際玩家類型」判斷，不依賴 cfg.mode（因為本地對戰的 mode 是 'local'）
     const isAIvsAI = this.players.every(p => p.botType);
 
-    // ★ 定時器必須在 return「之前」執行——放後面是死代碼
-    if (isAIvsAI && this.cfg.autoRestart && !this._autoRestartQueued && !this._autoRestartCancelled) {
-        this._autoRestartQueued = true;
-        // ★ 用固定 2 秒以上延遲（不除以 AI 速度），確保你看得到結果畫面
-        const delay = Math.max(2000, this.cfg.autoRestartDelay || 2000);
-        const tickEvery = 500;
-        let remaining = delay;
-        const tick = () => {
-            if (this._destroyed) return;
-            remaining -= tickEvery;
-            const el = document.getElementById('autorestart-countdown');
-            if (el) el.textContent = Math.max(0, Math.ceil(remaining / 1000));
-            if (remaining > 0) this._autoRestartTick = setTimeout(tick, tickEvery);
-        };
-        this._autoRestartTick = setTimeout(tick, tickEvery);
-        this._autoRestartFire = setTimeout(() => {
-            // ★ 先停止舊遊戲的一切
-            this._autoRestartCancelled = true;   // 防止再次排程
-            if (this._autoRestartTick) { clearTimeout(this._autoRestartTick); this._autoRestartTick = null; }
-            this.clearAllTimers();               // ← 關鍵：設 _destroyed=true，清所有 _sTO
-            // 明確清掉兩個自動重開計時器
-            try { clearTimeout(this._autoRestartFire); } catch (e) {}
-
-            let cfgCopy;
-            try {
-                cfgCopy = JSON.parse(JSON.stringify(this.cfg));
-            } catch (e) {
-                console.error('[auto-restart] cfg 複製失敗：', e);
-                return;
-            }
-            cfgCopy.seed = '';
-            cfgCopy._rematchVotes = undefined;
-            cfgCopy.autoRestart = true;
-            cfgCopy.autoExport = this.cfg.autoExport;
-
-            // 給瀏覽器一個 microtask 讓舊實例的殘留 render 完成
-            setTimeout(() => {
-                try {
-                    window.game = new Game(cfgCopy);
-                    console.log('[auto-restart] 新對局已開始');
-                } catch (e) {
-                    console.error('[auto-restart] 建立新對局失敗：', e);
-                }
-            }, 0);
-        }, delay);
-    }
+    // ★ 自動重開排程抽成方法（背景模式也需要）
+    this._scheduleAutoRestart();
 
     return `<div id="modal-slot"></div>` + this.renderBackBtn() + this.renderSpeedPanel() + `<div class="overlay"><div class="modal" style="text-align:center;">        <div style="font-size:64px;">🏆</div>
         <h2 style="color:${color};font-size:28px;">${this.players[w].name}${this.aiIcon(w)} 勝利！</h2>
@@ -8888,9 +9915,17 @@ buildReplayExport() {
 saveReplayToLocal() {
     try {
         const data = this.buildReplayExport();
+
+        // ★ 新增：背景模式 → 存進記憶體批次，不寫 localStorage
+        if (this._backgroundMode) {
+            window.__aiBatchReplays = window.__aiBatchReplays || [];
+            window.__aiBatchReplays.push(data);
+            return;   // 不寫 localStorage（避免爆掉）
+        }
+
         const arr = JSON.parse(localStorage.getItem('sanguo_logs') || '[]');
         arr.push(data);
-        while (arr.length > 500) arr.shift();
+        while (arr.length > 100) arr.shift();
         localStorage.setItem('sanguo_logs', JSON.stringify(arr));
     } catch(e) { console.warn('localStorage 失敗', e); }
 }
@@ -8950,7 +9985,7 @@ renderHandBar() {
         ${this.players.map((p, i) => {
             const col = PLAYER_COLORS[i % PLAYER_COLORS.length];
             const isTurn = (this.phase === 'turn' && i === this.current) ||
-                           (this.phase === 'preend' && this.preEndOrder && this.preEndOrder[this.preEndIdx] === i);
+                           (this.phase === 'preend' && this.preEndTurn === i);
             const isMe = (i === me);
             return `<div class="hb-side ${isTurn ? 'hb-turn' : ''} ${isMe ? 'hb-me' : ''}" style="border-left:3px solid ${col.border};">
                 <span class="hb-lbl" style="color:${col.text};">${p.name}${this.aiIcon(i)}</span>
@@ -8973,7 +10008,7 @@ renderPlayerRow() {
         const p = this.players[pi];
         const col = PLAYER_COLORS[pi % PLAYER_COLORS.length];
         const isCur = (this.phase === 'turn' && pi === this.current) ||
-                      (this.phase === 'preend' && this.preEndOrder && this.preEndOrder[this.preEndIdx] === pi);
+                      (this.phase === 'preend' && this.preEndTurn === pi);
         h += `<div class="pr-chip ${isCur ? 'pr-cur' : ''}" style="border-color:${col.border};color:${col.text};">
             <span class="pr-name">${p.name}${this.aiIcon(pi)}</span>
             <span class="pr-wins">🏆 ${p.wins}</span>
@@ -9110,7 +10145,7 @@ _predictGuanyuEntry(pi, bi) {
         activated: false, betrayed: false, betrayedFrom: null,
         usesLeft: undefined, pendingSilence: false, pendingBurnNext: false,
         pendingDamageNext: false, justDrawn: false,
-        lianhuan: false, lianhuanArmed: false, preparing: false,
+        lianhuan: false, lianhuanArmed: false, preparing: false, lianhuanHp: 0,
         grantedFubing: false, keepOnField: false, guardUsed: false,
         _oneShotBuff: undefined, enteredFaceUp: null, _jiushiUsed: false,
         playedBy: pi
@@ -9299,7 +10334,7 @@ _predictZhanchuTargets(pi, bi) {
 }
 renderControls() {
     if (this.netMode) {
-        if (this.phase === 'preend' && this.preEndOrder[this.preEndIdx] !== this.localPlayerIdx) {
+        if (this.phase === 'preend' && this.preEndTurn !== this.localPlayerIdx) {
             return `<div class="control-area">
                 <div class="ctrl-info">等待對手結算前出牌…</div>
                 <div style="margin:6px 0;"><span class="ai-badge" style="background:rgba(68,200,68,.2);color:#7cff7c;border-color:rgba(68,200,68,.5);">🌐 線上</span></div>
@@ -9325,20 +10360,25 @@ renderControls() {
         return h;
     }
     if (this.phase === 'preend') {
-        const pi = this.preEndOrder[this.preEndIdx];
+        const pi = this.preEndTurn;
+        if (pi === null || pi === undefined) {
+            return `<div class="control-area"><div class="ctrl-info">結算前結束，準備結算…</div></div>`;
+        }
         const color = (PLAYER_COLORS[pi % PLAYER_COLORS.length] || PLAYER_COLORS[0]).text;
         const isAIP = this.isAI(pi);
         const locked = this.cover || this.countdown !== null;
         const isMyTurn = !isAIP && (!this.netMode || pi === this.localPlayerIdx);
 
-        // ★ v3.9: 人類玩家在 preend 可出牌（特別是魏延/鄧艾的奇襲）
+        // ★ v3.7: 人類玩家在 preend 只能打出奇襲/奇謀/奔襲卡（魏延/鄧艾/法正/夏侯淵），或埋伏馬岱/徐榮
         if (isMyTurn && !locked) {
             const p = this.players[pi];
             const inst = this.selected ? p.hand.find(c => c.uid === this.selected) : null;
-            const bfName = BATTLEFIELDS[this.currentBfIndex];
+            const playableSel = inst && this.isPreEndPlayable(inst);
             let info = inst
-                ? `已選：<b>${inst.data.name}</b>（${inst.data.cost}糧 / ${inst.data.power}戰力）`
-                : `<b style="color:${color}">${p.name}</b> 結算前 — 選擇要打出的牌，或放棄`;
+                ? (playableSel
+                    ? `已選：<b>${inst.data.name}</b>（${inst.data.cost}糧 / ${inst.data.power}戰力）`
+                    : `<b>${inst.data.name}</b> 不能在結算前打出 — 只限【奇襲／奇謀／奔襲】卡片與埋伏【馬岱／徐榮】`)
+                : `<b style="color:${color}">${p.name}</b> 結算前 — 只能打出【奇襲／奇謀／奔襲】卡片、或埋伏【馬岱／徐榮】，或放棄`;
             let skillBox = '';
             if (inst) {
                 skillBox = `<div class="sel-skill-box">
@@ -9347,7 +10387,7 @@ renderControls() {
                     <div class="skill-desc">${inst.data.desc.replace(/\n/g,'<br>')}</div></div>`;
             }
             let fieldPicker = '';
-            if (inst) {
+            if (inst && playableSel) {
                 const allowed = this.getPlayableFields(inst, pi, 'preend');
                 if (allowed.length > 1) {
                     const btns = allowed.map(f => {
@@ -9363,8 +10403,8 @@ renderControls() {
             return `<div class="control-area">
                 <div class="ctrl-info">${info}</div>
                 <div class="ctrl-buttons">
-                    <button class="btn btn-green" ${(!inst || !this.canPlayNormally(inst, pi)) ? 'disabled' : ''} onclick="game.doPlay(false)">出牌</button>
-                    ${(inst && this.canPlayAmbush(inst, pi)) ? `<button class="btn btn-purple" onclick="game.doPlay(true)">埋伏出牌</button>` : ''}
+                    <button class="btn btn-green" ${(!inst || !playableSel || !this.canPlayNormally(inst, pi)) ? 'disabled' : ''} onclick="game.doPlay(false)">出牌</button>
+                    ${(inst && playableSel && this.canPlayAmbush(inst, pi)) ? `<button class="btn btn-purple" onclick="game.doPlay(true)">埋伏出牌</button>` : ''}
                     <button class="btn btn-red" onclick="game.preEndAct()">放棄出牌</button>
                 </div>${fieldPicker}${skillBox}</div>`;
         }
@@ -9374,7 +10414,7 @@ renderControls() {
                       ${isAIP && !this.cover ? `<div style="margin:6px 0;"><span class="ai-badge">${this.aiIcon(pi)} 電腦思考中…</span></div>` : ''}
             <div class="ctrl-buttons">
                 <button class="btn btn-green" disabled>出牌</button>
-                <button class="btn btn-red" ${(this.cover||isAIP) ? 'disabled' : ''} onclick="game.preEndAct()">放棄出牌</button>
+                <button class="btn btn-red" disabled>放棄出牌</button>
             </div></div>`;
     }
     const pi = this.current, p = this.players[pi];
@@ -9399,7 +10439,7 @@ renderControls() {
     // ★ v3.6: 權衡已改為回合開始自動觸發，不再提供手動按鈕
     const hasQuanheng = false;
     const hasLianying = !locked && !isAIP &&
-        p.fields[this.currentBfIndex].some(c => !c.faceDown && !c.silenced && (c.data.skills||[]).includes('連營')) &&
+        !!this._findLianyingUser(pi, this.currentBfIndex) &&
         this.players[this.opponentOf(pi)].fields[this.currentBfIndex].some(c => !c.faceDown && !c.burn);
     const hasJiushi = !locked && !isAIP && !!this.findJiushiCard(pi);
     let skillBox = '';
@@ -9580,17 +10620,24 @@ renderHands() {
     const opponentIsHuman = !this.isAI(this.opponentOf(pi));
     const hideHand = !this.netMode && this.isAI(pi) && opponentIsHuman;
     if (this.phase === 'preend') {
-        const pep = this.preEndOrder[this.preEndIdx], pp = this.players[pep];
-        const hidePep = this.isAI(pep) && !this.isAI(this.opponentOf(pep));
-        const canPlay = !this.isAI(pep) && !this.cover && !this.preEndDone[this.preEndIdx];
+        const pep = this.preEndTurn;
+        if (pep === null || pep === undefined || !this.players[pep]) {
+            return `<div class="hand-wrap"><div class="hand-title">手牌</div><div class="hand-row"><span style="color:#666;font-size:13px;padding:20px;">結算前結束，準備結算…</span></div></div>`;
+        }
+        const pp = this.players[pep];
+        const hidePep = (this.isAI(pep) && !this.isAI(this.opponentOf(pep))) || (this.netMode && pp._handHidden);
+        const canPlay = !this.isAI(pep) && !this.cover && !this.preEndPassed[pep]
+                        && (!this.netMode || pep === this.localPlayerIdx);
         const pendingFood = pp.fields[this.currentBfIndex].filter(c => c.faceDown).reduce((s,c) => s + c.data.cost, 0);
         const pendingTxt = pendingFood > 0 ? `　<span class="hand-pending">（背面牌將消耗 ${pendingFood} 糧）</span>` : '';
         const drawnHint = pp.hand.some(c => c.justDrawn) ? `<span style="color:#7cff7c;font-size:12px;margin-left:6px;">● 綠框為新抽到的牌</span>` : '';
-        return `<div class="hand-wrap"><div class="hand-title" style="color:${pep === 0 ? '#6fb6ff' : '#ff7b7b'}">${pp.name}${this.aiIcon(pep)} 的手牌（${pp.hand.length}）　糧草：${pp.food}/${cap}${pendingTxt}${drawnHint}</div>
-            <div class="hand-row">${(this.cover || hidePep) ? `<span style="color:#666;font-size:13px;padding:20px;">${hidePep?'🤖 AI 的手牌已隱藏':'手牌已隱藏'}</span>` :
+        const preendHint = canPlay ? `<span style="color:#c8a040;font-size:12px;margin-left:6px;">結算前只能打出【奇襲／奇謀／奔襲】或埋伏【馬岱／徐榮】</span>` : '';
+        const pcolor = (PLAYER_COLORS[pep % PLAYER_COLORS.length] || PLAYER_COLORS[0]).text;
+        return `<div class="hand-wrap"><div class="hand-title" style="color:${pcolor}">${pp.name}${this.aiIcon(pep)} 的手牌（${pp.hand.length}）　糧草：${pp.food}/${cap}${pendingTxt}${drawnHint}${preendHint}</div>
+            <div class="hand-row">${(this.cover || hidePep) ? `<span style="color:#666;font-size:13px;padding:20px;">${hidePep?'🤖 對手的手牌已隱藏':'手牌已隱藏'}</span>` :
                 (pp.hand.map(c => {
                     if (canPlay) {
-                        const playable = this.canPlayNormally(c, pep) || this.canPlayAmbush(c, pep);
+                        const playable = this.isPreEndPlayable(c) && (this.canPlayNormally(c, pep) || this.canPlayAmbush(c, pep));
                         const sel = this.selected === c.uid ? 'sel' : '';
                         const dim = playable ? '' : 'dim';
                         return this.cardHTML(c, { extra: `${sel} ${dim} clickable`, attr: `onclick="game.selectCard('${c.uid}')"` });
@@ -9794,13 +10841,10 @@ renderModals() {
         }
     }
     if (this.cover && this.countdown === null && this.phase === 'preend' && !this.netMode) {
-        const nextIdx = this.preEndIdx + 1;
-        if (nextIdx < this.preEndOrder.length) {
-            const nextPi = this.preEndOrder[nextIdx];
-            if (!this.isAI(nextPi)) {
-                const col = PLAYER_COLORS[nextPi % PLAYER_COLORS.length];
-                h += `<div class="handoff-overlay"><div class="who" style="color:${col.text}">請將裝置交給 ${this.players[nextPi].name}</div><div class="note">陣地結算前 — 手牌已隱藏</div><button class="btn btn-big btn-blue" onclick="game.handoff()">轉換玩家</button></div>`;
-            }
+        const nextPi = this.preEndTurn;
+        if (nextPi !== null && nextPi !== undefined && !this.isAI(nextPi)) {
+            const col = PLAYER_COLORS[nextPi % PLAYER_COLORS.length];
+            h += `<div class="handoff-overlay"><div class="who" style="color:${col.text}">請將裝置交給 ${this.players[nextPi].name}</div><div class="note">陣地結算前 — 手牌已隱藏</div><button class="btn btn-big btn-blue" onclick="game.handoff()">轉換玩家</button></div>`;
         }
     }
     // ★ v3.6 FIX: 網路模式下只有 scry 擁有者才能看到 modal
@@ -9844,7 +10888,7 @@ renderModals() {
         const targets = opp.fields[bi].filter(c => !c.faceDown);
         h += `<div class="overlay"><div class="modal">
             <h2>陸遜 · 連營</h2>
-            <p>指定對陣一張牌【燃燒】至陣地結算。陸遜將失去所有技能。</p>
+            <p>指定對陣一張牌【燃燒】至陣地結算。陸遜將失去【連營】（<b>保留【謙遜】</b>），每場限用一次。</p>
             <div class="modal-cards">${targets.length === 0 ? '<span style="color:#666;">對陣沒有可指定的正面牌</span>' :
                 targets.map(c => {
                     const on = this.lianying.sel === c.uid;
@@ -9907,6 +10951,58 @@ renderModals() {
             <div style="text-align:center;display:flex;gap:10px;justify-content:center;margin-top:14px;">
                 <button class="btn btn-green" ${(x.sel === null || x.dest === null) ? 'disabled' : ''} onclick="game.xunyuConfirm()">確認</button>
                 <button class="btn btn-red" onclick="game.xunyuSkip()">略過</button>
+            </div>
+        </div></div>`;
+    }
+	    /* ★ v3.7: 孫尚香 · 聯姻 */
+    if (this.liangyuan && !this.isAI(this.liangyuan.pi)) {
+        const ly = this.liangyuan;
+        const p = this.players[ly.pi];
+        const targets = p.fields[ly.bi].filter(c => ly.candidates.includes(c.uid));
+        h += `<div class="overlay"><div class="modal">
+            <h2>孫尚香 · 聯姻</h2>
+            <p>選擇同陣地一張正面男性友軍，締結【連理】。你將失去【聯姻】。</p>
+            <div class="modal-cards">${targets.map(c => {
+                const on = ly.sel === c.uid;
+                return this.cardHTML(c, { extra: (on ? 'sel' : '') + ' clickable', noHighlight: true,
+                    attr: `onclick="game.liangyuanSelect('${c.uid}')"` });
+            }).join('')}</div>
+            <div style="text-align:center;display:flex;gap:10px;justify-content:center;">
+                <button class="btn btn-green" ${ly.sel === null ? 'disabled' : ''} onclick="game.liangyuanConfirm()">確認</button>
+                <button class="btn btn-red" onclick="game.liangyuanSkip()">略過</button>
+            </div>
+        </div></div>`;
+    }
+    /* ★ v3.7: 陸抗 · 繼承 */
+    if (this.lukang && !this.isAI(this.lukang.pi)) {
+        const lk = this.lukang;
+        const p = this.players[lk.pi];
+        const targets = p.fields[lk.bi].filter(c => lk.candidates.includes(c.uid));
+        h += `<div class="overlay"><div class="modal">
+            <h2>陸抗 · 繼承</h2>
+            <p>選擇同陣地一張正面友軍，繼承其目前享受的所有額外戰力加成。</p>
+            <div class="modal-cards">${targets.map(c => {
+                const on = lk.sel === c.uid;
+                const bonus = c._expectedBonus || 0;
+                const badge = `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#ffd700;color:#4a2000;font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px;border:2px solid #fff8d0;box-shadow:0 0 8px rgba(255,215,0,.7);z-index:5;">+${bonus}</div>`;
+                return `<div style="position:relative;">${badge}${this.cardHTML(c, { extra: (on ? 'sel' : '') + ' clickable', noHighlight: true,
+                    attr: `onclick="game.lukangSelect('${c.uid}')"` })}</div>`;
+            }).join('')}</div>
+            <div style="text-align:center;display:flex;gap:10px;justify-content:center;">
+                <button class="btn btn-green" ${lk.sel === null ? 'disabled' : ''} onclick="game.lukangConfirm()">確認</button>
+                <button class="btn btn-red" onclick="game.lukangSkip()">略過</button>
+            </div>
+        </div></div>`;
+    }
+    /* ★ v3.7: 孫皓 · 苛政 */
+    if (this.sunhao && !this.isAI(this.sunhao.pi)) {
+        h += `<div class="overlay"><div class="modal" style="max-width:480px;">
+            <h2>孫皓 · 苛政</h2>
+            <p>指定 1～3。至本陣地結算前，雙方於此陣地正面出牌時糧草必須等於指定數字。</p>
+            <div style="display:flex;gap:12px;justify-content:center;margin:20px 0;">
+                <button class="btn btn-big btn-gold" onclick="game.sunhaoPick(1)">1</button>
+                <button class="btn btn-big btn-gold" onclick="game.sunhaoPick(2)">2</button>
+                <button class="btn btn-big btn-gold" onclick="game.sunhaoPick(3)">3</button>
             </div>
         </div></div>`;
     }
@@ -10001,7 +11097,7 @@ function showSetup() {
     document.getElementById('app').innerHTML = `
     <div class="setup">
         <h1>三 國 風 雲</h1>
-        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.6</div>
+        <div class="sub">資源卡牌對戰 · 多模式對戰 · 兩勝制 · v3.7</div>
 
         <div class="sec">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -10025,7 +11121,22 @@ function showSetup() {
                 </div>
             </div>
             <div id="seat-config" style="margin-bottom:14px;"></div>
-            <button class="btn btn-big btn-green" onclick="startGame('local')">▶️ 開始遊戲</button>
+${isFastAiDebug() ? (
+    isFastAiRunning()
+        ? `<button class="btn btn-big btn-red" onclick="stopFastAIBattle()">⏹ 停止 AI 對戰（背景執行中）</button>
+           <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">
+               <button class="btn btn-gold" onclick="viewFastAIBattle()">👁 查看 AI 對戰</button>
+               <span style="font-size:14px;color:#7cc4ff;font-weight:bold;background:rgba(20,60,120,.4);padding:8px 16px;border-radius:8px;border:1px solid rgba(80,180,255,.5);box-shadow:0 0 12px rgba(80,180,255,.3);">
+                   ⚔️ 已完成 <span id="ai-battle-count">${getAiBattleCount()}</span> 場
+               </span>
+				<button class="btn btn-gold" style="font-size:12px;padding:5px 12px;"
+				onclick="exportAiBatchReplays()">📦 匯出批次 (${(window.__aiBatchReplays||[]).length})</button>
+		</div>`
+        : `<button class="btn btn-big btn-green" onclick="startFastAIBattle()">⚡ 開始快速 AI 背景對戰</button>
+           <div style="margin-top:8px;font-size:13px;color:#a89070;">
+               累計已跑 <b style="color:#7cc4ff;font-size:16px;">${getAiBattleCount()}</b> 場 AI vs AI 對戰
+           </div>`
+) : `<button class="btn btn-big btn-green" onclick="startGame('local')">▶️ 開始遊戲</button>`}
         </div>
 
         <div class="sec">
@@ -10057,6 +11168,11 @@ function showSetup() {
 					<div class="num-item" style="grid-column:1/-1;">
 						<span>🔁 AI vs AI 對戰結束後，自動重新開局</span>
 						<input type="checkbox" id="cfg-autoRestart" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
+					</div>		
+					<div class="num-item" style="grid-column:1/-1;flex-wrap:wrap;gap:8px;">
+						<span>🐛 調試模式<span style="font-size:11px;color:#ff8888;margin-left:6px;">（開啟後將停用成就）</span></span>
+						<input type="checkbox" id="cfg-debugMode" onchange="setDebugMode(this.checked)" style="width:auto;cursor:pointer;accent-color:#c8a040;">
+						<button class="btn" style="font-size:12px;padding:4px 10px;" onclick="resetDebugChanges()">🔄 重置所有調試更改</button>
 					</div>					
                     <label class="num-item"><span>初始糧草</span><input type="number" id="cfg-initialFood" value="7" min="0" max="30"></label>
                     <label class="num-item"><span>勝利額外糧草</span><input type="number" id="cfg-winBonus" value="1" min="0" max="20"></label>
@@ -10082,8 +11198,8 @@ function showSetup() {
         <div class="sec" style="text-align:center;">
             <h3>線上對戰</h3>
             <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                <button class="btn btn-gold" onclick="createOnlineRoom()">🌐 建立線上房間</button>
-                <button class="btn btn-blue" onclick="joinOnlineRoom()">🔗 加入線上房間</button>
+			<button class="btn btn-gold" ${isFastAiDebug() ? 'disabled title="快速 AI 對戰模式下已停用"' : ''} onclick="createOnlineRoom()">🌐 建立線上房間</button>
+			<button class="btn btn-blue" ${isFastAiDebug() ? 'disabled title="快速 AI 對戰模式下已停用"' : ''} onclick="joinOnlineRoom()">🔗 加入線上房間</button>
             </div>
             ${(() => {
                 try {
@@ -10123,7 +11239,8 @@ function showSetup() {
                 <button class="btn" onclick="openViewer()">📖 卡牌圖鑑</button>
                 <button class="btn" onclick="openDefs()">📚 規則定義</button>
                 <button class="btn btn-gold" onclick="openFaqOverview()">❓ FAQ</button>
-                <button class="btn" onclick="openVisualSettings()">🎨 視覺設定</button>
+<button class="btn btn-gold" onclick="openAchievements()">🏅 成就</button>
+                <button class="btn" onclick="openVisualSettings()">⚙️ 選項</button>
                 <button class="btn" onclick="openChangelog()">📝 更新日誌</button>
                 <button class="btn btn-gold" onclick="openLogViewer()">📜 回放記錄</button>
                 <button class="btn" onclick="importLogFromFile()">📂 匯入 JSON</button>
@@ -10148,12 +11265,14 @@ function showSetup() {
         }
     } catch (e) {}
     // Initialize mode picker + seat config
-    setTimeout(() => {
-        document.querySelectorAll('.mode-btn').forEach(b => {
-            b.classList.toggle('mode-btn-on', b.dataset.mode === selectedGameMode);
-        });
-        renderSeatConfig();
-    }, 0);
+	setTimeout(() => {
+		document.querySelectorAll('.mode-btn').forEach(b => {
+			b.classList.toggle('mode-btn-on', b.dataset.mode === selectedGameMode);
+		});
+		renderSeatConfig();
+		_syncDebugCheckbox();
+		_startAiBattleCountUpdater();   // ★ 新增：啟動即時更新
+	}, 0);
 }
 function exportAllLocalLogs() {
     const raw = localStorage.getItem('sanguo_logs');
@@ -10347,6 +11466,10 @@ function downloadLogByIndex(idx) {
 /* v3.7: 卡片庫 — set 篩選 + 勝率排序 */
 window.__viewerVanilla  = (typeof window.__viewerVanilla  === 'undefined') ? true : window.__viewerVanilla;
 window.__viewerExtended = (typeof window.__viewerExtended === 'undefined') ? true : window.__viewerExtended;
+window.__statsMode = (() => {
+    try { return localStorage.getItem('sanguo_statsMode') || 'all'; }
+    catch(e) { return 'all'; }
+})();
 
 /* ============ 卡牌庫折疊功能 ============ */
 window.__viewerCollapsed = (() => {
@@ -10393,13 +11516,18 @@ function openViewer() {
 
     // ---- 讀取統計 ----
     const stats = loadCardStats();
+    const statsMode = window.__statsMode || 'all';
+    const _getBucketEntry = (bucket, id) => {
+        const mb = stats[bucket] && stats[bucket][statsMode];
+        return mb ? mb[id] : null;
+    };
     const getRate = (id, bucket) => {
-        const s = stats[bucket] && stats[bucket][id];
+        const s = _getBucketEntry(bucket, id);
         if (!s || !s.plays) return null;
         return s.wins / s.plays;
     };
     const getPlays = (id, bucket) => {
-        const s = stats[bucket] && stats[bucket][id];
+        const s = _getBucketEntry(bucket, id);
         return s ? s.plays : 0;
     };
 
@@ -10448,10 +11576,10 @@ function openViewer() {
             const badge = item.total > 1 ? `<div class="viewer-badge">${item.idx + 1}/${item.total}</div>` : '';
             let statBadge = '';
             if (showStats) {
-                const s = stats[statBucket][d.id];
+                const s = _getBucketEntry(statBucket, d.id);
                 if (s && s.plays > 0) {
                     const pct = Math.round((s.wins / s.plays) * 100);
-                    const col = pct >= 60 ? '#7cff7c' : (pct >= 40 ? '#ffd700' : '#ff7b7b');
+                    const col = getWinRateColor(pct);
                     const tip = `「打出此牌的玩家」最終贏得整場遊戲的比例\n（出場 ${s.plays} 場，勝 ${s.wins} 場）`;
 statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.85);color:${col};font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid ${col};font-weight:bold;z-index:2;cursor:help;">${pct}% (${s.plays})</div>`;
                 } else {
@@ -10465,7 +11593,6 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
 
     const btnVanilla  = `<button class="${window.__viewerVanilla  ? 'on' : ''}" onclick="toggleViewerSet('vanilla')">標準</button>`;
     const btnExtended = `<button class="${window.__viewerExtended ? 'on' : ''}" onclick="toggleViewerSet('extended')">擴展</button>`;
-
     const sortBtns = `
         <button class="${viewerMode === 'id' ? 'on' : ''}" onclick="setViewerMode('id')">依編號</button>
         <button class="${viewerMode === 'sort' ? 'on' : ''}" onclick="setViewerMode('sort')">依糧草+戰力</button>
@@ -10473,11 +11600,30 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
         <button class="${viewerMode === 'playerRate' ? 'on' : ''}" onclick="setViewerMode('playerRate')">🧑 玩家勝率</button>
     `;
 
+    const statsModeBar = showStats ? `
+        <div class="viewer-toolbar" style="border-top:1px solid rgba(200,160,64,.18);padding-top:10px;margin-top:-2px;">
+            <span style="font-size:12px;color:#a89070;align-self:center;margin-right:4px;font-weight:bold;">模式：</span>
+            <button class="${statsMode === 'all'      ? 'on' : ''}" onclick="setStatsMode('all')">全部</button>
+            <button class="${statsMode === '1v1'      ? 'on' : ''}" onclick="setStatsMode('1v1')">👥 1 vs 1</button>
+            <button class="${statsMode === '1v1v1'    ? 'on' : ''}" onclick="setStatsMode('1v1v1')">👥 1 vs 1 vs 1</button>
+            <button class="${statsMode === '2v2'      ? 'on' : ''}" onclick="setStatsMode('2v2')">🤝 2 vs 2</button>
+            <button class="${statsMode === '1v1v1v1'  ? 'on' : ''}" onclick="setStatsMode('1v1v1v1')">👥 1 vs 1 vs 1 vs 1</button>
+        </div>
+    ` : '';
+
+	const statsModeLabel = {
+		'all': '全部模式',
+		'1v1': '1 vs 1',
+		'1v1v1': '1 vs 1 vs 1',
+		'2v2': '2 vs 2',
+		'1v1v1v1': '1 vs 1 vs 1 vs 1'
+	}[statsMode] || '全部模式';
 	const statsHint = showStats
 		? `<p style="font-size:12px;color:#a89070;text-align:center;margin:6px 0 10px;line-height:1.7;">
 			 ${statBucket === 'ai'
 				? '🤖 僅統計「困難 AI vs 困難 AI」對局'
-				: '🧑 僅統計人類玩家對局'}<br>
+				: '🧑 僅統計人類玩家對局'}
+			 ｜ 模式：<b style="color:#7cc4ff;">${statsModeLabel}</b><br>
 			 <span style="color:#ffd700;">勝率＝打出此牌的玩家最終贏得整場遊戲的比例</span>
 			 · 格式：勝率% (出場遊戲場次) · 滑鼠移到數字可看詳細
 		   </p>`
@@ -10487,6 +11633,7 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
         <h2>卡牌庫（合計 ${pool.length} 張）</h2>
         <div class="viewer-toolbar">${btnVanilla}${btnExtended}</div>
         <div class="viewer-toolbar">${sortBtns}</div>
+        ${statsModeBar}
         <div class="viewer-toggle-all-bar">
             <button onclick="setAllFactionsCollapsed(false)">🔽 展開全部</button>
             <button onclick="setAllFactionsCollapsed(true)">🔼 收合全部</button>
@@ -10501,6 +11648,11 @@ statBadge = `<div title="${tip}" style="position:absolute;bottom:2px;left:2px;ba
     </div></div>`;
 }
 function setViewerMode(m) { viewerMode = m; openViewer(); }
+function setStatsMode(m) {
+    window.__statsMode = m;
+    try { localStorage.setItem('sanguo_statsMode', m); } catch(e) {}
+    openViewer();
+}
 function toggleViewerSet(setName) {
     if (setName === 'vanilla') {
         if (window.__viewerVanilla && !window.__viewerExtended) return; // at least one stays on
@@ -10519,9 +11671,9 @@ function confirmClearCardStats() {
 }
 function exportCardStats() {
     const stats = loadCardStats();
-    const buildBucket = (bucket) => {
+    const buildModeBucket = (modeBucket) => {
         const out = {};
-        Object.entries(bucket || {}).forEach(([id, s]) => {
+        Object.entries(modeBucket || {}).forEach(([id, s]) => {
             if (!s || !s.plays) return;
             const def = CARD_DB.find(d => d.id === id);
             out[id] = {
@@ -10538,11 +11690,19 @@ function exportCardStats() {
         });
         return out;
     };
+    const buildBucket = (bucket) => {
+        const out = {};
+        Object.keys(bucket || {}).forEach(modeKey => {
+            out[modeKey] = buildModeBucket(bucket[modeKey]);
+        });
+        return out;
+    };
     const payload = {
         exportedAt: new Date().toISOString(),
-        version: 1,
-        description: '三國風雲 — 卡片勝率統計匯出',
-        note: 'winRate 單位為 %；plays = 出場次數；wins = 該牌打出的陣營贏得該輪的次數',
+        version: 2,
+        description: '三國風雲 — 卡片勝率統計匯出（依模式分組）',
+        note: 'winRate 單位為 %；plays = 出場次數；wins = 該牌打出的陣營贏得該輪的次數。'
+            + '結構：{ ai: { "all": {...}, "1v1": {...}, ... }, player: {...} }',
         ai: buildBucket(stats.ai),
         player: buildBucket(stats.player)
     };
@@ -10560,9 +11720,14 @@ function exportCardStats() {
 function cardHTMLStatic(d) {
     const fac = FACTION_INFO[d.faction];
     const powerMain = d.power;
+	const isAmbushCapable = d.isAmbush || (d.skills || []).includes('伏兵');
+    const ambushStrip = isAmbushCapable ? '<div class="c-ambush-strip"></div>' : '';
     const generalTag = d.isGeneral ? '<span class="c-gen">上將</span>' : '';
+    const isFanpan = (d.skills || []).some(s => ['奇謀','奇襲','奔襲'].includes(s));
+    const fanpanTag = isFanpan ? '<span class="c-fanpan">逆轉</span>' : '';
     const skillNames = (d.skills || []).map(s => `<div>${s}</div>`).join('');
     return `<div class="card"><div class="card-front ${fac.cls}">
+        ${ambushStrip}
         <span class="c-cost">${d.cost}</span>
         <span class="c-fac">${fac.name}</span>
         <span class="c-skills">${skillNames}</span>
@@ -10570,7 +11735,7 @@ function cardHTMLStatic(d) {
         ${d.title ? `<span class="c-title">${d.title}</span>` : ''}
         <span class="c-art">${d.emoji}</span>
         <span class="c-power">${powerMain}</span>
-        ${generalTag}
+        ${generalTag}${fanpanTag}
     </div></div>`;
 }
 function inspectDefFromViewer(id) {
@@ -10579,6 +11744,23 @@ function inspectDefFromViewer(id) {
     const slot = document.getElementById('modal-slot');
     const existing = slot.querySelector('.viewer-inspect-overlay');
     if (existing) existing.remove();
+
+    // 調試按鈕（在複製左邊）
+    let debugBtn = '';
+    if (isDebugMode() && window.game && window.game.state === 'battle') {
+        const g = window.game;
+        const me = g.netMode ? g.localPlayerIdx : g.current;
+        const oppPi = g.opponentOf(me);
+        const oppHas = g.players[oppPi] && g.players[oppPi].hand.some(c => c.data.id === id);
+        if (oppHas) {
+            debugBtn = `<button class="btn" disabled title="此牌目前在對手手中" style="opacity:.5;cursor:not-allowed;">🐛 加入手牌（對手持有）</button>`;
+        } else if (g.netMode && g.role === 'guest') {
+            debugBtn = `<button class="btn" disabled title="訪客無法使用" style="opacity:.5;cursor:not-allowed;">🐛 加入手牌</button>`;
+        } else {
+            debugBtn = `<button class="btn btn-purple" onclick="debugAddCardToHand('${def.id}')">🐛 加入手牌</button>`;
+        }
+    }
+
     const div = document.createElement('div');
     div.className = 'overlay viewer-inspect-overlay';
     div.style.zIndex = '1000';
@@ -10588,12 +11770,13 @@ function inspectDefFromViewer(id) {
             <div class="inspect-body">
                 <h2>${def.name}</h2>
                 ${def.title ? `<div class="inspect-title">${def.title}</div>` : ''}
-                <div class="inspect-stats"><b>${FACTION_INFO[def.faction].name}</b> ｜ 糧草 <b>${def.cost}</b> ｜ 基礎戰力 <b>${def.power}</b>${def.count ? ` ｜ 共 <b>${def.count}</b> 張` : ''}</div>
+                <div class="inspect-stats"><b>${FACTION_INFO[def.faction].name}</b> ｜ 糧草 <b>${def.cost}</b> ｜ 基礎戰力 <b>${def.power}</b> ｜ ID <b>${def.cardId}</b>${def.count ? ` ｜ 共 <b>${def.count}</b> 張` : ''}</div>
                 <div class="inspect-desc">${def.desc.replace(/\n/g,'<br>')}</div>
             </div>
         </div>
         <div style="text-align:center;margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-            <button class="btn btn-gold" onclick="copyCardFullText('${def.id}')">📋 複製卡牌內容</button>
+            ${debugBtn}
+            <button class="btn btn-gold" onclick="copyCardFullText('${def.id}')">📋 複製</button>
             <button class="btn btn-red" onclick="closeViewerInspect()">關閉</button>
             ${faqButtonHTML(def.cardId)}
         </div>
@@ -10668,7 +11851,22 @@ function openChangelog() {
 
     const VER = [
         {
-            v: 'v3.6', date: '現在', color: '#7cff7c',
+            v: 'v3.7', date: '現在', color: '#ffd700',
+            items: [
+                ['🔄 結算前階段重製', '改為「輪流出牌」：先手方先行動，玩家可連續打出多張牌，放棄即退出，對方仍可繼續出牌'],
+                ['🎴 結算前可出牌的卡片', '結算前只能打出擁有「奇襲／奇謀／奔襲」技能的卡片（魏延、鄧艾、法正、夏侯淵），或以埋伏方式打出馬岱、徐榮'],
+                ['⚡ 過去陣地提前重算', '結算前結束後、當前陣地結算之前，立即重算第 1 輪至上一輪的所有陣地；若翻轉後某方達 2 勝，立即獲勝'],
+                ['🔢 結算技能順序修正', 'onSettle 技能觸發順序改以本輪先手方為起點（原本錯誤地以最後行動者為起點）'],
+                ['🤖 結算前 AI 重寫', 'AI 現在會評估翻轉潛力、糧草成本、戰場優劣勢，決定是否打出奇襲卡或放棄']
+				['🔥 龐統【連環】重製', '改為「連3」機制：連環敵受到【燃燒】或【傷害】時，對其他連環有連之敵軍傳播 1 點戰力流失（最大為其連數）並使連數 -1，連 0 時失效。純戰力流失（驅虎、權謀、力竭）不觸發；【堅守】生效時整批傳播被擋下'],
+                ['🎴 馬岱 / 徐榮改伏兵系', '技能改為【伏兵】【斬除】，斬除改為「對方上一張正面打出的牌若糧草為 1 則移除之，否則該牌受到 1 戰力傷害並失去非鎖定技」；兩者可在結算前以埋伏方式打到過去陣地，立即翻開觸發斬除（可直接反制魏延偷家）'],
+                ['💞 孫尚香【連理】明示', 'desc 註明【梟姬】返回手牌時會主動拆散【連理】，自身與締結對象的連理同時失效'],
+                ['🛡️ 伏兵系視覺標記', '可背面進場的牌（伏兵系 / isAmbush）在卡面上 1/6 顯示灰色條標記'],
+                ['🃏 卡牌圖鑑顯示 ID', '單卡詳情頁在基礎戰力右側直接顯示 cardId']
+            ]
+        },
+        {
+            v: 'v3.6', date: '舊版', color: '#7cff7c',
             items: [
                 ['🌐 線上大廳系統', '建立房間 → 選模式 → 玩家準備 → 開始遊戲 的完整流程'],
                 ['👥 多人線上對戰', '1v1 / 1v1v1 / 2v2 / 1v1v1v1 皆可線上開房'],
@@ -11931,16 +13129,30 @@ Game.prototype.render = function () {
             return;
         }
 
-        // ---- preend 階段：只支援 Q（放棄出牌） ----
+        // ---- preend 階段：Q 放棄、Space 出牌、E 埋伏 ----
         if (g.phase === 'preend') {
-            const pep = g.preEndOrder && g.preEndOrder[g.preEndIdx];
+            const pep = g.preEndTurn;
             if (pep === undefined || pep === null) return;
             if (g.isAI(pep)) return;
+            if (g.preEndPassed && g.preEndPassed[pep]) return;
             if (g.netMode && pep !== g.localPlayerIdx) return;
             if (g.cover || g.countdown !== null) return;
             if (e.key === 'q' || e.key === 'Q') {
                 e.preventDefault();
                 g.preEndAct();
+                return;
+            }
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                if (g.selected) g.doPlay(false);
+                return;
+            }
+            if (e.key === 'e' || e.key === 'E') {
+                if (g.selected) {
+                    const pp = g.players[pep];
+                    const inst = pp.hand.find(c => c.uid === g.selected);
+                    if (inst && g.isPreEndPlayable(inst) && g.canPlayAmbush(inst, pep)) g.doPlay(true);
+                }
             }
             return;
         }
@@ -12305,6 +13517,233 @@ Game.prototype.render = function () {
         init();
     }
 })();
+
+/* ================================================================ */
+/* ============ 成就系統 ========================================== */
+/* ================================================================ */
+const ACHIEVEMENTS_KEY = 'sanguo_achievements';
+
+function loadAchievementsData() {
+    try {
+        const raw = localStorage.getItem(ACHIEVEMENTS_KEY);
+        if (!raw) return { games:0, wins:0, roundWins:0, totalCardsPlayed:0,
+                           currentStreak:0, maxStreak:0, unlocked:{} };
+        const d = JSON.parse(raw);
+        return {
+            games: d.games || 0,
+            wins: d.wins || 0,
+            roundWins: d.roundWins || 0,
+            totalCardsPlayed: d.totalCardsPlayed || 0,
+            currentStreak: d.currentStreak || 0,
+            maxStreak: d.maxStreak || 0,
+            unlocked: d.unlocked || {}
+        };
+    } catch (e) {
+        return { games:0, wins:0, roundWins:0, totalCardsPlayed:0,
+                 currentStreak:0, maxStreak:0, unlocked:{} };
+    }
+}
+function saveAchievementsData(d) {
+    try { localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(d)); } catch (e) {}
+}
+
+const ACHIEVEMENT_DEFS = [
+    { id:'games',       name:'沙場老將', desc:'累計完成對局',       icon:'⚔️',
+      tiers:[1, 10, 50],   unit:'場', statKey:'games' },
+    { id:'wins',        name:'常勝將軍', desc:'累計獲得最終勝利',   icon:'🏆',
+      tiers:[1, 5, 20],    unit:'勝', statKey:'wins' },
+    { id:'streak',      name:'連戰連捷', desc:'達成最高連勝紀錄',   icon:'🔥',
+      tiers:[2, 5, 10],    unit:'連勝', statKey:'maxStreak' },
+    { id:'roundWins',   name:'攻城掠地', desc:'累計贏得單輪勝利',   icon:'🚩',
+      tiers:[10, 50, 150], unit:'輪', statKey:'roundWins' },
+    { id:'cardsPlayed', name:'名將如雲', desc:'累計打出卡牌種類',   icon:'🎴',
+      tiers:[30, 200, 500],unit:'種', statKey:'totalCardsPlayed' }
+];
+const TIER_LABELS = ['🥉 銅', '🥈 銀', '🥇 金'];
+const TIER_COLORS = ['#cd7f32', '#c0c0c0', '#ffd700'];
+
+function computeAchLevel(ach, value) {
+    let level = -1;
+    for (let i = 0; i < ach.tiers.length; i++) if (value >= ach.tiers[i]) level = i;
+    return level;
+}
+
+function openAchievements() {
+    const slot = document.getElementById('modal-slot');
+    if (!slot) return;
+    const debug = isDebugMode();
+    const stats = loadAchievementsData();
+
+    const itemsHtml = ACHIEVEMENT_DEFS.map(ach => {
+        const value = stats[ach.statKey] || 0;
+        const level = computeAchLevel(ach, value);
+        const currentCol = level >= 0 ? TIER_COLORS[level] : '#666';
+        const tierHtml = ach.tiers.map((t, i) => {
+            const achieved = value >= t;
+            const col = TIER_COLORS[i];
+            return `<div style="flex:1;text-align:center;padding:8px 4px;border-radius:6px;
+                        background:${achieved ? 'rgba(255,215,0,.13)' : 'rgba(0,0,0,.25)'};
+                        border:1px solid ${achieved ? col : 'rgba(120,120,120,.3)'};">
+                <div style="font-size:20px;opacity:${achieved?1:0.3};">${['🥉','🥈','🥇'][i]}</div>
+                <div style="font-size:11px;color:${achieved?col:'#666'};font-weight:bold;margin-top:4px;">${TIER_LABELS[i]}</div>
+                <div style="font-size:12px;color:${achieved?'#fff':'#666'};margin-top:4px;">${t} ${ach.unit}</div>
+            </div>`;
+        }).join('');
+
+        return `<div style="margin-bottom:14px;padding:12px 14px;background:rgba(0,0,0,.28);border-radius:10px;border-left:3px solid ${currentCol};">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+                <div>
+                    <span style="font-size:18px;margin-right:8px;">${ach.icon}</span>
+                    <b style="color:#ffd700;font-size:15px;">${ach.name}</b>
+                    <span style="color:#a89070;font-size:12px;margin-left:8px;">${ach.desc}</span>
+                </div>
+                <div style="font-size:13px;color:${currentCol};font-weight:bold;">${value} ${ach.unit}</div>
+            </div>
+            <div style="display:flex;gap:8px;">${tierHtml}</div>
+        </div>`;
+    }).join('');
+
+    const debugWarn = debug ? `<div style="padding:10px 14px;background:rgba(255,80,80,.18);border:1px solid rgba(255,120,120,.5);border-radius:8px;margin-bottom:14px;font-size:13px;color:#ff9c9c;line-height:1.7;">
+        ⚠️ <b>調試模式已開啟 — 成就系統暫停運作</b><br>
+        關閉調試模式後，成就將繼續正常累積。
+    </div>` : '';
+
+    slot.innerHTML = `<div class="overlay" onclick="closeModal(event)"><div class="modal" onclick="event.stopPropagation()" style="max-width:720px;">
+        <h2>🏅 成就系統</h2>
+        <p style="font-size:12px;color:#a89070;">達成條件自動解鎖對應獎牌 · 銅 / 銀 / 金三階段</p>
+        ${debugWarn}
+        <div style="max-height:60vh;overflow-y:auto;padding:4px;">${itemsHtml}</div>
+        <div style="text-align:center;margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn" style="font-size:12px;padding:6px 12px;" onclick="confirmClearAchievements()">🗑️ 重置成就</button>
+            <button class="btn btn-red" onclick="closeModal()">關閉</button>
+        </div>
+    </div></div>`;
+}
+
+function confirmClearAchievements() {
+    if (!confirm('確定重置所有成就進度？\n\n此操作無法復原。')) return;
+    try { localStorage.removeItem(ACHIEVEMENTS_KEY); } catch (e) {}
+    alert('✅ 已重置成就進度');
+    openAchievements();
+}
+
+/* ================================================================ */
+/* ============ 調試模式 =========================================== */
+/* ================================================================ */
+function isDebugMode() {
+    return safeStore.get('sanguo_debugMode', '0') === '1';
+}
+function setDebugMode(on) {
+    safeStore.set('sanguo_debugMode', on ? '1' : '0');
+}
+function resetDebugChanges() {
+    if (!confirm('確定重置所有調試更改？\n\n這將：\n• 關閉調試模式\n• 清除所有調試相關的本地記錄\n\n（進行中的遊戲狀態不受影響，但調試功能將無法使用）')) return;
+    setDebugMode(false);
+    alert('✅ 已重置所有調試更改');
+    // 若選項彈窗正開著，重新整理
+    const el = document.querySelector('.visual-settings-overlay');
+    if (el && typeof openVisualSettings === 'function') openVisualSettings();
+}
+
+/* ============ 調試：加入手牌 ============ */
+function debugAddCardToHand(defId) {
+    if (!isDebugMode()) return;
+    const g = window.game;
+    if (!g) { alert('沒有進行中的遊戲'); return; }
+    if (g.state !== 'battle') { alert('遊戲尚未開始或已結束'); return; }
+    if (g.netMode && g.role === 'guest') { alert('訪客無法使用調試功能'); return; }
+
+    const def = CARD_DB.find(d => d.id === defId);
+    if (!def) return;
+
+    const me = g.netMode ? g.localPlayerIdx : g.current;
+    const oppPi = g.opponentOf(me);
+    const oppHas = g.players[oppPi].hand.some(c => c.data.id === defId);
+    if (oppHas) {
+        alert('❌ 這張牌目前在對手手中，無法添加');
+        return;
+    }
+
+    const inst = g.newInst(def);
+    inst.justDrawn = true;
+    g.players[me].hand.push(inst);
+    g.addLog('sys', `🐛 [調試] 加入 ${def.name} 至 ${g.players[me].name} 手牌`);
+    g.render();
+    closeViewerInspect();
+}
+
+/* 初始化 showSetup 的調試複選框（在載入頁面時同步） */
+function _syncDebugCheckbox() {
+    const dbg = document.getElementById('cfg-debugMode');
+    if (dbg) dbg.checked = isDebugMode();
+}
+
+/* ================================================================ */
+/* ============ 快速 AI 背景對戰（Debug） ========================== */
+/* ================================================================ */
+function isFastAiDebug() {
+    return safeStore.get('sanguo_fastAiDebug', '0') === '1';
+}
+function setFastAiDebug(on) {
+    safeStore.set('sanguo_fastAiDebug', on ? '1' : '0');
+}
+
+function isFastAiRunning() {
+    const g = window.game;
+    if (!g) return false;
+    if (!g._fastAiDebug) return false;
+    if (g._destroyed) return false;
+    if (g.state === 'gameover') return false;
+    return true;
+}
+
+function startFastAIBattle() {
+    if (isFastAiRunning()) return;
+    const cfg = {
+        mode: 'local',
+        gameMode: selectedGameMode,
+        playerConfigs: seatConfigs.map(s => ({ type: 'hard' })),
+        seed: '',
+        cardSets: readCardSetConfig(),
+        sendToBottom: false,
+        initialFood: 7,
+        winBonus: 1,
+        baseRefill: 6,
+        initialCards: 4,
+        maxFood: 12,
+        aiTrashTalk: false,
+        chatEnabled: false,
+        autoExport: false,
+        autoRestart: false,
+        fastAIDebug: true
+    };
+    if (!validateCardSets(cfg.cardSets)) return;
+    window.game = new Game(cfg);
+    showSetup();
+}
+
+function stopFastAIBattle() {
+    const g = window.game;
+    if (g) {
+        try { g.closeGameMenu && g.closeGameMenu(); } catch (e) {}
+        try { g.clearAllTimers(); } catch (e) {}
+    }
+    window.game = null;
+    showSetup();
+}
+
+function viewFastAIBattle() {
+    const g = window.game;
+    if (!g) return;
+    g._backgroundMode = false;
+    // ★ 進入查看模式：把速度降到可點擊的值（避免 UI 刷新太快）
+    if (g._fastAiDebug && g.aiSpeed > 10) {
+        g._savedAiSpeedForView = g.aiSpeed;
+        g.aiSpeed = 2;   // 想更慢可改 1，想更快可改 4
+        g.addLog('sys', '👁 查看模式：AI 速度降至 2x（返回背景模式後恢復）');
+    }
+    g.render();
+}
 
 try {
     showSetup();
