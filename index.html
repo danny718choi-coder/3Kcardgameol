@@ -2792,7 +2792,7 @@ const CARD_DB = [
 { id:'liubei', cardId:'001', name:'劉備', title:'惟賢惟德', faction:'shu', cost:2, power:3, emoji:'👑', set:'vanilla',
   skills:['蜀王','梟雄'],
   desc:'蜀王：同陣地其他蜀國友軍戰力+1。\n梟雄：若所在陣地結算後劣勢，自己返回手牌並補回相應糧草。',
-  onSettle(ctx){if(ctx.isLosing){const f=ctx.myField;f.splice(f.indexOf(ctx.self),1);ctx.game.players[ctx.owner].food=Math.min(ctx.game.cfg.maxFood,ctx.game.players[ctx.owner].food+ctx.self.data.cost);ctx.self.mod=0;ctx.game.players[ctx.owner].hand.push(ctx.self);ctx.log(`${ctx.self.data.name}【梟雄】：己方劣勢，返回手牌並補回 ${ctx.self.data.cost} 糧`);}}
+      onSettle(ctx){if(ctx.isLosing){const f=ctx.myField;f.splice(f.indexOf(ctx.self),1);ctx.game.players[ctx.owner].food=Math.min(ctx.game.maxFoodOf(ctx.owner),ctx.game.players[ctx.owner].food+ctx.self.data.cost);ctx.self.mod=0;ctx.game.players[ctx.owner].hand.push(ctx.self);ctx.log(`${ctx.self.data.name}【梟雄】：己方劣勢，返回手牌並補回 ${ctx.self.data.cost} 糧`);}}
 },
 { id:'huangzhong', cardId:'005', name:'黃忠', title:'老當益壯', faction:'shu', cost:2, power:3, emoji:'🏹', set:'vanilla',
   skills:['烈矢'],
@@ -2947,7 +2947,7 @@ const CARD_DB = [
   onEnter(ctx){
       ctx.game.players[ctx.owner].oneShotBuffs = ctx.game.players[ctx.owner].oneShotBuffs || {};
       ctx.game.players[ctx.owner].oneShotBuffs[ctx.field] = { amount: 1, target: null, armed: true };
-      ctx.game.players[ctx.owner].food=Math.min(ctx.game.cfg.maxFood,ctx.game.players[ctx.owner].food+1);
+      ctx.game.players[ctx.owner].food=Math.min(ctx.game.maxFoodOf(ctx.owner),ctx.game.players[ctx.owner].food+1);
       ctx.log(`${ctx.self.data.name}【放權】：下一張友軍 +1 戰力，+1 糧`);
   }
 },
@@ -3120,7 +3120,7 @@ const CARD_DB = [
   desc:'奇策：進場時，己方糧草 +1。',
   onEnter(ctx){
       const p = ctx.game.players[ctx.owner];
-      p.food = Math.min(ctx.game.cfg.maxFood, p.food + 1);
+      p.food = Math.min(ctx.game.maxFoodOf(ctx.owner), p.food + 1);
       ctx.log(`${ctx.self.data.name}【奇策】：糧草 +1（現 ${p.food}）`);
   }
 },
@@ -3421,7 +3421,7 @@ const CARD_DB = [
           ctx.self.mod = 0;
           ctx.self.silenced = false;
           ctx.self.wedded = false;
-          ctx.game.players[ctx.owner].food = Math.min(ctx.game.cfg.maxFood, ctx.game.players[ctx.owner].food + ctx.self.data.cost);
+          ctx.game.players[ctx.owner].food = Math.min(ctx.game.maxFoodOf(ctx.owner), ctx.game.players[ctx.owner].food + ctx.self.data.cost);
           ctx.game.players[ctx.owner].hand.push(ctx.self);
           ctx.log(`${ctx.self.data.name}【梟姬】：返回手牌並補回 ${ctx.self.data.cost} 糧（連理解除）`);
       }
@@ -3786,7 +3786,7 @@ const CARD_DB = [
   desc:'僭號：進場時，己方糧草 +2，並獲得【嘲諷】。\n眾叛：鎖定技，若所在陣地結算後劣勢，己方糧草 -2（最低 0）並隨機棄 1 張手牌。',
   onEnter(ctx){
     const p = ctx.game.players[ctx.owner];
-    p.food = Math.min(ctx.game.cfg.maxFood, p.food + 2);
+    p.food = Math.min(ctx.game.maxFoodOf(ctx.owner), p.food + 2);
     ctx.game.players[ctx.opponent].mustFaceUp = true;
     ctx.log(`${ctx.self.data.name}【僭號】：糧草 +2（現 ${p.food}），對手獲得【嘲諷】`);
   },
@@ -3829,7 +3829,7 @@ const CARD_DB = [
         ctx.log(`${ctx.self.data.name}【穩紮】：+${gain} 戰力`);
       } else {
         const p = ctx.game.players[ctx.owner];
-        p.food = Math.min(ctx.game.cfg.maxFood, p.food + cap);
+                    p.food = Math.min(ctx.game.maxFoodOf(ctx.owner), p.food + cap);
         ctx.log(`${ctx.self.data.name}【穩紮】：+${cap} 糧草（現 ${p.food}）`);
       }
       return;
@@ -3849,7 +3849,7 @@ const CARD_DB = [
   desc:'督糧：進場時，己方糧草 +2。\n酒誤：鎖定技，自己受到戰力傷害或即將被移除時，己方糧草 -1，對陣糧草 +1（最多觸發 2 次）。',
   onEnter(ctx){
     const p = ctx.game.players[ctx.owner];
-    p.food = Math.min(ctx.game.cfg.maxFood, p.food + 2);
+    p.food = Math.min(ctx.game.maxFoodOf(ctx.owner), p.food + 2);
     ctx.log(`${ctx.self.data.name}【督糧】：糧草 +2（現 ${p.food}）`);
   }
 },
@@ -4815,6 +4815,13 @@ constructor(cfg) {
     if (this._challengeBonus && this._challengeBonus.oppFood) {
         this.players[1].food += this._challengeBonus.oppFood;
     }
+    /* ★ v4.0 fix: oppMaxFood（糧草上限）+ oppRefill（每輪補給）*/
+    if (this._challengeBonus && this._challengeBonus.oppMaxFood) {
+        this.players[1].maxFood += this._challengeBonus.oppMaxFood;
+    }
+    if (this._challengeBonus && this._challengeBonus.oppRefill) {
+        this.players[1].bonusRefill += this._challengeBonus.oppRefill;
+    }
 
     this.buildDeck();
     this.initReplay();
@@ -4823,8 +4830,14 @@ constructor(cfg) {
     this.render();
 }
 
-get currentBfIndex() { return Math.max(0, Math.min(this.round - 1, this.fieldCount - 1)); }
+    get currentBfIndex() { return Math.max(0, Math.min(this.round - 1, this.fieldCount - 1)); }
 
+    /* ★ v4.0: 取得該玩家的糧草上限（挑戰模式對手可能有加成） */
+    maxFoodOf(pi) {
+        const p = this.players && this.players[pi];
+        return (p && typeof p.maxFood === 'number') ? p.maxFood : this.cfg.maxFood;
+    }
+	
 initReplay() {
     this.replay = {
         version: 2,
@@ -4876,6 +4889,7 @@ mkPlayer(name, idx) {
     const bonus = (this.cfg.playerBonuses && this.cfg.playerBonuses[idx]) || {};
     return { idx, name, hand: [], fields,
         food: this.cfg.initialFood + (bonus.initialFood || 0),
+        maxFood: this.cfg.maxFood,
         wins: 0,
         bonusInitialFood:  bonus.initialFood  || 0,
         bonusRefill:       bonus.refill       || 0,
@@ -5021,9 +5035,9 @@ getPower(inst, pi, bi, atSettle, skipLijie, skipGaoshunDebuff) {
         const _hasGaoshun = _oppField.some(c =>
             !c.faceDown && !c.silenced && c.data.id === 'gaoshun');
         if (_hasGaoshun) {
-            // skipGaoshunDebuff=true 遞迴，避免無限迴圈
-            const _myTotal  = this.fieldPower(pi, bi, false, false, true);
-            const _oppTotal = this.fieldPower(_oppPi, bi, false, false, true);
+            // ★ v4.8 FIX: 兩層 skip 都設 true，避免與力竭/無備互相遞迴
+            const _myTotal  = this.fieldPower(pi, bi, false, true, true);
+            const _oppTotal = this.fieldPower(_oppPi, bi, false, true, true);
             if (_oppTotal > _myTotal) p -= 1;
         }
     }
@@ -5040,8 +5054,8 @@ getPower(inst, pi, bi, atSettle, skipLijie, skipGaoshunDebuff) {
                 const hasJianshou = myFieldRef.some(c =>
                     !c.faceDown && (c.data.skills||[]).includes('堅守'));
                 if (hasJianshou) {
-                    const myTotal = this.fieldPower(pi, bi, false, true);
-                    const oppTotal = this.fieldPower(this.opponentOf(pi), bi, false, true);
+                    const myTotal = this.fieldPower(pi, bi, false, true, true);
+                    const oppTotal = this.fieldPower(this.opponentOf(pi), bi, false, true, true);
                     if (myTotal <= oppTotal) protectedByJianshou = true;
                 }
             }
@@ -5051,8 +5065,8 @@ getPower(inst, pi, bi, atSettle, skipLijie, skipGaoshunDebuff) {
         }
 		        // ★ 顏良 / 文丑【無備】：劣勢時 -2
         if (sk.includes('無備') && !skipLijie) {
-            const _myTot  = this.fieldPower(pi, bi, false, true);
-            const _oppTot = this.fieldPower(this.opponentOf(pi), bi, false, true);
+            const _myTot  = this.fieldPower(pi, bi, false, true, true);
+            const _oppTot = this.fieldPower(this.opponentOf(pi), bi, false, true, true);
             if (_myTot < _oppTot) p -= 2;
         }
         if (sk.includes('涉獵')) {
@@ -5267,6 +5281,9 @@ _startWatchdog() {
         if (this._destroyed) return;
         if (this.state !== 'battle') return;
         if (this.netMode) return;
+        // ★ v4.7: 先嘗試解除卡死的 _aiPaused
+        //   （若 DOM 中沒有選單元素，代表選單被 render() 洗掉了 → 該解除）
+        this._autoUnstickAI();
         if (this._aiPaused) return;              // ★ v3.9: 使用者主動暫停 → 不偵測
         // 只在完全無人操作、且全部是 AI 時才自動恢復
         if (!this.players.every(p => p.botType)) return;
@@ -5519,9 +5536,24 @@ _recordGameStats(winningPlayers) {
         writeToBucket('all');      // 同時寫入「全部」
     }
     saveCardStats(stats);
+
+    /* ★ v4.1 FIX: 挑戰模式金幣獎勵 + 連勝追蹤 */
+    if (this.cfg._challengeMode && this.cfg._challengeLevel) {
+        const humanWon = this.players[0].wins >= 2;
+        const rwd = recordChallengeGame(this.cfg._challengeLevel, humanWon);
+        if (rwd) this._pendingCoinReward = rwd;
+        this._challengeRewarded = true;
+    }
+
     // ★ 成就追蹤（挑戰模式跳過，由挑戰自己的系統追蹤）
     if (!this.cfg._challengeMode) {
         this._trackAchievements(winningPlayers);
+        /* ★ v4.1 FIX: 一般 1v1 打困難 AI 也給金幣（走 default1v1 統計） */
+        if (this._isDefault1v1Hard) {
+            const humanWon = this.players[0].wins >= 2;
+            const rwd = recordChallengeGame('default1v1', humanWon);
+            if (rwd) this._pendingCoinReward = rwd;
+        }
     }
 }
 /* ============ 成就追蹤（僅單機、非調試模式） ============ */
@@ -5573,6 +5605,9 @@ _trackAchievements(winningPlayers) {
         }
     }
 
+    /* ★ v4.1: 同步「天下無雙」計數（自癒保險） */
+    st.challengesCleared = countClearedChallenges();
+
     saveAchievementsData(st);
 }
 renderSpeedPanel() {
@@ -5587,7 +5622,15 @@ renderSpeedPanel() {
 clearCountdown() { if(this.countdownTimer){clearTimeout(this.countdownTimer);this.countdownTimer=null;} this.countdown=null; }
 startCountdown(onDone) {
     this.clearCountdown();
-    if (this.netMode || this._fastAiDebug) { onDone(); return; }
+    if (this.netMode) { onDone(); return; }
+    /* ★ v4.7 FIX: fastAIDebug 只跳過倒數動畫，仍必須呼叫 advanceTurn */
+    if (this._fastAiDebug) {
+        onDone();
+        if (this.phase === 'turn' && this.state === 'battle') {
+            this.advanceTurn();
+        }
+        return;
+    }
     const allBots = this.players.every(p => p.botType);
 
     // ★ v4.1: 判斷是否需要倒數
@@ -6779,7 +6822,7 @@ _triggerJiuwu(card, ownerPi) {
     const oppPi = this.opponentOf(ownerPi);
     const oppP = this.players[oppPi];
     if (myP)  myP.food  = Math.max(0, myP.food - 1);
-    if (oppP) oppP.food = Math.min(this.cfg.maxFood, oppP.food + 1);
+    if (oppP) oppP.food = Math.min(oppP.maxFood, oppP.food + 1);
     this.addLog(ownerPi, `${card.data.name}【酒誤】：己方 -1 糧，對手 +1 糧（剩餘 ${card.usesLeft} 次）`);
 }
 /* ★ 統一移除入口：處理【酒誤】後，送進棄牌堆 */
@@ -8554,6 +8597,8 @@ scoreCardAI(c, pi, diff, ctx) {
     const myPow = ctx.myPow !== undefined ? ctx.myPow : this.fieldPower(pi, bi, false);
     const oppPow = ctx.oppPow !== undefined ? ctx.oppPow : this.fieldPower(this.opponentOf(pi), bi, false);
     let score = 0;
+    // ★ v4.8: 提前宣告 isLastRound，供孫乾 / 魯肅等前方區塊使用
+    const isLastRound = this.round >= this.fieldCount;
 
     // ★ v3.6: 高勝率卡偏好（小幅度，僅在決策接近時起作用）
     if (AI_PREFERRED_CARDS[d.id]) score += AI_PREFERRED_CARDS[d.id];
@@ -8711,9 +8756,10 @@ scoreCardAI(c, pi, diff, ctx) {
         const DAMAGERS = ['威嚇','烈矢','飛矢','霸王','火攻','烈刃','火船','連營','剛烈'];
         const hasDamagerOnField = myFieldNow.some(c => !c.faceDown && !c.silenced &&
             (c.data.skills||[]).some(s => DAMAGERS.includes(s)));
-        const hasDamagerInHand = p.hand.some(c => c.uid !== c.uid ? false :
-            (c.uid !== (c.uid || '') && !c.data.forceFaceDown &&
-            (c.data.skills||[]).some(s => DAMAGERS.includes(s))));
+        const hasDamagerInHand = p.hand.some(x =>
+            x.uid !== c.uid &&
+            !x.data.forceFaceDown &&
+            (x.data.skills||[]).some(s => DAMAGERS.includes(s)));
 
         // ★ 硬性門檻：完全沒傷害源 → 連環永遠不觸發
         if (!hasDamagerOnField && !hasDamagerInHand) {
@@ -10605,15 +10651,15 @@ async settle() {
 
 	for (let pi = 0; pi < this.numPlayers; pi++) {
 		const refillAmt = this.cfg.baseRefill + (this.players[pi].bonusRefill || 0);
-		this.players[pi].food = Math.min(this.cfg.maxFood, this.players[pi].food + refillAmt);
+		this.players[pi].food = Math.min(this.players[pi].maxFood, this.players[pi].food + refillAmt);
 		this.players[pi].fields[bi].forEach(c => {
             if (!c.faceDown && !c.silenced && (c.data.skills||[]).includes('締盟') && this.firstPasser === pi) {
-                this.players[pi].food = Math.min(this.cfg.maxFood, this.players[pi].food + 1);
+                this.players[pi].food = Math.min(this.players[pi].maxFood, this.players[pi].food + 1);
                 this.addLog(pi, `[R${this.round}] ${c.data.name}【締盟】：先放棄 +1 糧`);
             }
         });
     }
-    this.players[winner].food = Math.min(this.cfg.maxFood, this.players[winner].food + this.cfg.winBonus);
+    this.players[winner].food = Math.min(this.players[winner].maxFood, this.players[winner].food + this.cfg.winBonus);
     this.addLog('sys', `補給 ${this.cfg.baseRefill} 糧，${this.players[winner].name} 額外 +${this.cfg.winBonus} 糧`);
 
     this.lastResult = { f0, f1, winner, battlefield: BATTLEFIELDS[bi] };
@@ -10806,7 +10852,18 @@ render() {
         this.scheduleAI();
     }, this._fastAiDebug ? 0 : 30);
 }
-/* ★ v4.1: 判斷是否需要顯示熱座交接黑幕 */
+/* ★ v4.6: 保險機制 — 若 AI 卡在暫停狀態（例如選單關閉失敗），自動恢復 */
+_autoUnstickAI() {
+    if (!this._aiPaused) return;
+    // 若「選單已從 DOM 消失」但旗標還是 true → 自動清除
+    const menuOpen = document.querySelector('.game-menu-overlay');
+    if (!menuOpen) {
+        this._aiPaused = false;
+        this._aiPausedBeforeMenu = undefined;
+        this.addLog('sys', '🔧 [自動修復] AI 暫停旗標殘留，已自動解除');
+    }
+}
+/* ★ v4.3: 判斷是否需要顯示熱座交接黑幕 */
 _setCoverForHotseat() {
     if (this.netMode) { this.cover = false; return; }
     const currentIsHuman = !this.isAI(this.current);
@@ -10951,6 +11008,8 @@ _nextActorAfterCurrent() {
 scheduleAI() {
     if (this._destroyed) return;
     if (this.netMode) return;
+    // ★ v4.6: 每次排程前檢查是否卡住
+    this._autoUnstickAI();
     if (this._aiPaused) return;                    // ★ 已暫停
     if (this.state !== 'battle') return;
     if (this.countdown !== null) return;
@@ -11681,10 +11740,10 @@ return `<span style="color:${col.text};">${p.name} ${winDots}${this.aiIcon(i)}</
         </div></div>`;
 }
 renderHandBar() {
-    const cap = this.cfg.maxFood;
     const me = this.netMode ? this.localPlayerIdx : this.current;
     return `<div class="hand-bar multi">
         ${this.players.map((p, i) => {
+            const cap = this.maxFoodOf(i);
             const col = PLAYER_COLORS[i % PLAYER_COLORS.length];
             const isTurn = (this.phase === 'turn' && i === this.current) ||
                            (this.phase === 'preend' && this.preEndTurn === i);
@@ -12156,7 +12215,7 @@ renderControls() {
     else if (isAIP) {
         // ★ v4.1: AI 回合 → 顯示「電腦思考中」+ AI 的糧草 / 勝場 / 已出牌數
         const playedCount = (this._gamePlays && this._gamePlays[pi]) ? this._gamePlays[pi].size : 0;
-        info = `<b style="color:${color}">${p.name}${this.aiIcon(pi)}</b> 🤖 電腦思考中…　｜　🌾 ${p.food}/${this.cfg.maxFood}　｜　🏆 ${p.wins}　｜　🃏 已出 ${playedCount}`;
+        info = `<b style="color:${color}">${p.name}${this.aiIcon(pi)}</b> 🤖 電腦思考中…　｜　🌾 ${p.food}/${this.maxFoodOf(pi)}　｜　🏆 ${p.wins}　｜　🃏 已出 ${playedCount}`;
     }
     else if (inst) info = `已選：<b>${inst.data.name}</b>（${inst.data.cost}糧 / ${inst.data.power}戰力）　→ 將出牌至【<b style="color:#ffd700">${bfName}</b>】`;
         else info = `<b style="color:${color}">${p.name}</b> 的回合　—　<span style="color:#7cff7c;font-weight:bold;">👆 點擊下方手牌</span> 選擇要出的牌（出牌至【${bfName}】）`;
@@ -12365,7 +12424,7 @@ renderHands() {
     const p = this.players[pi];
     if (!p) return '';
     const color = pi === 0 ? '#6fb6ff' : (pi === 1 ? '#ff7b7b' : (pi === 2 ? '#7cff7c' : '#d090ff'));
-    const cap = this.cfg.maxFood;
+    const cap = this.maxFoodOf(pi);
     const opponentIsHuman = !this.isAI(this.opponentOf(pi));
     const hideHand = !this.netMode && this.isAI(pi) && opponentIsHuman;
     if (this.phase === 'preend') {
@@ -13173,13 +13232,19 @@ const CHALLENGE_LEVELS = [
 /* ============ ★ v4.2: 挑戰模式（重製） ========================== */
 const CHALLENGE_DEFS = [
     { id:'c0', name:'挑戰 0 · 基礎對決', desc:'對抗困難 AI，公平對局',
-      base:40,  oppFood:0, oppRefill:0, oppHand:0 },
+      base:40,  oppFood:0, oppRefill:0, oppHand:0, oppMaxFood:0 },
     { id:'c1', name:'挑戰 1 · 資源劣勢', desc:'對抗困難 AI（對手起始糧草 +1）',
-      base:60,  oppFood:1, oppRefill:0, oppHand:0 },
+      base:60,  oppFood:1, oppRefill:0, oppHand:0, oppMaxFood:0 },
     { id:'c2', name:'挑戰 2 · 補給劣勢', desc:'對抗困難 AI（對手每輪補給 +1）',
-      base:85,  oppFood:0, oppRefill:1, oppHand:0 },
+      base:90,  oppFood:0, oppRefill:1, oppHand:0, oppMaxFood:0 },
     { id:'c3', name:'挑戰 3 · 全面劣勢', desc:'對抗困難 AI（對手每輪補給 +1、起始手牌 +1）',
-      base:110, oppFood:0, oppRefill:1, oppHand:1 }
+      base:130, oppFood:0, oppRefill:1, oppHand:1, oppMaxFood:0 },
+    { id:'c4', name:'挑戰 4 · 帝國崛起', desc:'對抗困難 AI（+1 起始糧、+1 糧上限、+1 每輪補給、+1 起始手牌）',
+      base:180, oppFood:1, oppRefill:1, oppHand:1, oppMaxFood:1 },
+    { id:'c5', name:'挑戰 5 · 泰山壓頂', desc:'對抗困難 AI（+2 糧上限、+2 每輪補給、+1 起始手牌）',
+      base:240, oppFood:0, oppRefill:2, oppHand:1, oppMaxFood:2 },
+    { id:'c6', name:'挑戰 6 · 無間地獄', desc:'對抗困難 AI（+2 糧上限、+2 每輪補給、+2 起始手牌）',
+      base:300, oppFood:0, oppRefill:2, oppHand:2, oppMaxFood:2 }
 ];
 
 const CHALLENGE_STATS_KEY = 'sanguo_challengeStats';
@@ -13252,7 +13317,25 @@ function recordChallengeGame(levelId, won) {
         reward = { base, firstClear, streakBonus, total, streak: st.streak };
     }
     saveChallengeStats(stats);
+
+    /* ★ v4.1: 更新「天下無雙」成就（只計挑戰關卡 c0~c6，不含 default1v1） */
+    if (CHALLENGE_DEFS.some(c => c.id === levelId)) {
+        const ach = loadAchievementsData();
+        ach.challengesCleared = countClearedChallenges();
+        saveAchievementsData(ach);
+    }
+
     return reward;
+}
+
+/* ★ v4.1: 統計目前通關過的挑戰關卡數量（c0~c6） */
+function countClearedChallenges() {
+    const stats = loadChallengeStats();
+    let n = 0;
+    for (const c of CHALLENGE_DEFS) {
+        if (stats[c.id] && stats[c.id].firstCleared) n++;
+    }
+    return n;
 }
 
 function openChallengeMode() {
@@ -16351,7 +16434,7 @@ function loadAchievementsData() {
     try {
         const raw = localStorage.getItem(ACHIEVEMENTS_KEY);
         if (!raw) return { games:0, wins:0, roundWins:0, totalCardsPlayed:0,
-                           currentStreak:0, maxStreak:0, unlocked:{} };
+                           currentStreak:0, maxStreak:0, challengesCleared:0, unlocked:{} };
         const d = JSON.parse(raw);
         return {
             games: d.games || 0,
@@ -16360,11 +16443,12 @@ function loadAchievementsData() {
             totalCardsPlayed: d.totalCardsPlayed || 0,
             currentStreak: d.currentStreak || 0,
             maxStreak: d.maxStreak || 0,
+            challengesCleared: d.challengesCleared || 0,
             unlocked: d.unlocked || {}
         };
     } catch (e) {
         return { games:0, wins:0, roundWins:0, totalCardsPlayed:0,
-                 currentStreak:0, maxStreak:0, unlocked:{} };
+                 currentStreak:0, maxStreak:0, challengesCleared:0, unlocked:{} };
     }
 }
 function saveAchievementsData(d) {
@@ -16373,15 +16457,17 @@ function saveAchievementsData(d) {
 
 const ACHIEVEMENT_DEFS = [
     { id:'games',       name:'沙場老將', desc:'累計完成對局',       icon:'⚔️',
-      tiers:[1, 10, 50],   unit:'場', statKey:'games' },
+      tiers:[1, 20, 50],   unit:'場', statKey:'games' },
     { id:'wins',        name:'常勝將軍', desc:'累計獲得最終勝利',   icon:'🏆',
-      tiers:[1, 5, 20],    unit:'勝', statKey:'wins' },
+      tiers:[1, 10, 20],   unit:'勝', statKey:'wins' },
     { id:'streak',      name:'連戰連捷', desc:'達成最高連勝紀錄',   icon:'🔥',
       tiers:[2, 5, 10],    unit:'連勝', statKey:'maxStreak' },
     { id:'roundWins',   name:'攻城掠地', desc:'累計贏得單輪勝利',   icon:'🚩',
       tiers:[10, 50, 150], unit:'輪', statKey:'roundWins' },
     { id:'cardsPlayed', name:'名將如雲', desc:'累計打出卡牌種類',   icon:'🎴',
-      tiers:[30, 200, 500],unit:'種', statKey:'totalCardsPlayed' }
+      tiers:[50, 80, 100],unit:'種', statKey:'totalCardsPlayed' },
+    { id:'challenges',  name:'天下無雙', desc:'通關挑戰模式關卡',   icon:'🌟',
+      tiers:[2, 4, 7],    unit:'關', statKey:'challengesCleared' }
 ];
 const TIER_LABELS = ['🥉 銅', '🥈 銀', '🥇 金'];
 const TIER_COLORS = ['#cd7f32', '#c0c0c0', '#ffd700'];
@@ -16560,6 +16646,9 @@ function viewFastAIBattle() {
     const g = window.game;
     if (!g) return;
     g._backgroundMode = false;
+    // ★ v4.6 FIX: 進入查看模式時，強制解除暫停（避免選單卡住）
+    g._aiPaused = false;
+    g._aiPausedBeforeMenu = undefined;
     // ★ 進入查看模式：把速度降到可點擊的值（避免 UI 刷新太快）
     if (g._fastAiDebug && g.aiSpeed > 10) {
         g._savedAiSpeedForView = g.aiSpeed;
