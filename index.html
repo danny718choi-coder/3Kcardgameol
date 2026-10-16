@@ -4805,9 +4805,9 @@ constructor(cfg) {
                     this.players[pi].weaponBonusCardIds = activeCardIds;
                 }
             }
-            const names = WEAPON_DB.filter(w => activeCardIds.has(w.targetCardId))
-                .map(w => `${w.name}(${w.targetName})`).join('、');
-            this.addLog('sys', `⚔️ 專屬武器生效：${names} 各 +1 基本戰力`);
+        const names = WEAPON_DB.filter(w => activeCardIds.has(w.targetCardId))
+            .map(w => `${w.name}(${w.targetName} +${getWeaponBonus(w)})`).join('、');
+        this.addLog('sys', `⚔️ 專屬武器生效：${names}`);
         }
     }
 
@@ -5014,11 +5014,11 @@ getPower(inst, pi, bi, atSettle, skipLijie, skipGaoshunDebuff) {
     const hasKongcheng = d.skills && d.skills.includes('空城');
     const isZhuge = d.id === 'zhugeliang';
     let effectiveBase = isZhuge ? 3 : d.power;
-    /* ★ v4.4: 專屬武器 —— 基本戰力 +1（僅擁有者為人類時生效） */
+    /* ★ v4.4: 專屬武器 —— 基本戰力依 weapon.powerBonus（僅擁有者為人類時生效） */
     if (!isZhuge && this.players && this.players[pi] &&
         this.players[pi].weaponBonusCardIds &&
         this.players[pi].weaponBonusCardIds.has(d.id)) {
-        effectiveBase += 1;
+        effectiveBase += getWeaponBonus(WEAPON_BY_CARD[d.id]);
     }
     if (!effectiveBase && !hasKongcheng) return 0;
 
@@ -11288,8 +11288,8 @@ cardHTML(inst, o = {}) {
     const weaponActive = (o.ownerPi !== undefined && this.players && this.players[o.ownerPi] &&
         this.players[o.ownerPi].weaponBonusCardIds &&
         this.players[o.ownerPi].weaponBonusCardIds.has(d.id));
-		const weaponDef = weaponActive ? WEAPON_BY_CARD[d.id] : null;
-    const weaponBonus = weaponActive ? 1 : 0;
+    const weaponDef = weaponActive ? WEAPON_BY_CARD[d.id] : null;
+    const weaponBonus = weaponActive ? getWeaponBonus(weaponDef) : 0;
     let powerMain, modTxt = '', pcls = '#ffffff';
     {
         const totalPower = (o.power !== undefined) ? o.power
@@ -13088,14 +13088,25 @@ const SHOP_ITEMS = [
 
 /* ★ v4.3: 專屬武器（永久道具，一次只能裝備 1 把） */
 const WEAPON_DB = [
-    { id:'weapon_qinglong', name:'青龍偃月刀', icon:'🐉', targetCardId:'guanyu',   targetName:'關羽', price:500, desc:'購買後：關羽基本戰力 +1（自動生效，可個別停用）' },
-    { id:'weapon_zhangba',  name:'丈八蛇矛',   icon:'🐍', targetCardId:'zhangfei', targetName:'張飛', price:500, desc:'購買後：張飛基本戰力 +1（自動生效，可個別停用）' },
-    { id:'weapon_fangtian', name:'方天畫戟',   icon:'🔱', targetCardId:'lvbu',     targetName:'呂布', price:500, desc:'購買後：呂布基本戰力 +1（自動生效，可個別停用）' },
-    { id:'weapon_cixiong',  name:'雌雄雙股劍', icon:'⚔️', targetCardId:'liubei',   targetName:'劉備', price:500, desc:'購買後：劉備基本戰力 +1（自動生效，可個別停用）' },
-    { id:'weapon_longdan',  name:'龍膽亮銀槍', icon:'🐲', targetCardId:'zhaoyun',  targetName:'趙雲', price:500, desc:'購買後：趙雲基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_qinglong', name:'青龍偃月刀', icon:'🐉', targetCardId:'guanyu',     targetName:'關羽', price:800,  powerBonus:1, desc:'購買後：關羽基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_zhangba',  name:'丈八蛇矛',   icon:'🐍', targetCardId:'zhangfei',   targetName:'張飛', price:800,  powerBonus:1, desc:'購買後：張飛基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_fangtian', name:'方天畫戟',   icon:'🔱', targetCardId:'lvbu',       targetName:'呂布', price:1200, powerBonus:2, desc:'購買後：呂布基本戰力 +2（自動生效，可個別停用）' },
+    { id:'weapon_cixiong',  name:'雌雄雙股劍', icon:'⚔️', targetCardId:'liubei',     targetName:'劉備', price:500,  powerBonus:1, desc:'購買後：劉備基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_longdan',  name:'龍膽亮銀槍', icon:'🐲', targetCardId:'zhaoyun',    targetName:'趙雲', price:500,  powerBonus:1, desc:'購買後：趙雲基本戰力 +1（自動生效，可個別停用）' },
+    /* ★ v4.1: 新增 5 把武器 —— 覆蓋魏 / 吳 / 蜀三陣營，兼顧不同角色定位 */
+    { id:'weapon_yitian',   name:'倚天劍',     icon:'🗡️', targetCardId:'caocao',     targetName:'曹操', price:500,  powerBonus:1, desc:'購買後：曹操基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_gding',    name:'古錠刀',     icon:'⚔️', targetCardId:'sunjian',    targetName:'孫堅', price:800,  powerBonus:1, desc:'購買後：孫堅基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_shuangji', name:'雙鐵戟',     icon:'🔱', targetCardId:'dianwei',    targetName:'典韋', price:500,  powerBonus:1, desc:'購買後：典韋基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_yajiao',   name:'涯角槍',     icon:'🐎', targetCardId:'machao',     targetName:'馬超', price:500,  powerBonus:1, desc:'購買後：馬超基本戰力 +1（自動生效，可個別停用）' },
+    { id:'weapon_tietai',   name:'鐵胎弓',     icon:'🏹', targetCardId:'huangzhong', targetName:'黃忠', price:500,  powerBonus:1, desc:'購買後：黃忠基本戰力 +1（自動生效，可個別停用）' },
 ];
 const WEAPON_BY_CARD = {};
 WEAPON_DB.forEach(w => { WEAPON_BY_CARD[w.targetCardId] = w; });
+
+/* ★ v4.1: 讀取武器的戰力加成（預設 1，未定義時 fallback 為 1） */
+function getWeaponBonus(w) {
+    return (w && typeof w.powerBonus === 'number') ? w.powerBonus : 1;
+}
 /* 把武器塞進 SHOP_ITEMS，商店會自動顯示 */
 WEAPON_DB.forEach(w => {
     SHOP_ITEMS.push({
