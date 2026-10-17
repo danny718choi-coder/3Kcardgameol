@@ -3139,7 +3139,7 @@ const CARD_DB = [
       }
   }
 },
-{ id:'caozhang', cardId:'123', name:'曹彰', title:'黃鬚兒', faction:'wei', cost:2, power:3, emoji:'🐎', set:'extended',
+{ id:'caozhang', cardId:'123', name:'曹彰', title:'黃鬚兒', faction:'wei', cost:2, power:4, emoji:'🐎', set:'extended',
   skills:['將馳'], isGeneral:true,
   desc:'將馳：進場時，可額外支付最多3點糧草，每額外支付1點糧草，自己戰力+2。若此時自己戰力比所有敵人目前戰力都高，自己戰力額外+2。',
   onEnter(ctx){
@@ -6443,6 +6443,7 @@ serializeForPlayer(forPlayer) {
     };
     return {
         _v: 1, forPlayer, seed: this.seed,
+        gameMode: this.gameMode, // ★ FIX: Send game mode to guest
         players: this.players.map((p, pi) => serP(p, pi)),
         deck: this.deck.map(c => this._serCard(c)),
         archive: this.archive.map(c => this._serCard(c)),
@@ -6475,9 +6476,22 @@ serializeForPlayer(forPlayer) {
         logs: this.logs.slice(-150)
     };
 }
-applyState(s) {
-    this.seed = s.seed;
-    this.players = s.players.map((p) => {
+    applyState(s) {
+        this.seed = s.seed;
+        
+        // ★ FIX: Force the Guest's board to match the Host's board exactly
+        if (s.gameMode) {
+            this.gameMode = s.gameMode;
+            const modeDef = GAME_MODE_DEFS[this.gameMode];
+            if (modeDef) {
+                this.numPlayers = modeDef.numPlayers;
+                this.fieldCount = modeDef.battlefields.length;
+                this.battlefields = modeDef.battlefields.slice();
+                BATTLEFIELDS = this.battlefields.slice();
+            }
+        }
+
+        this.players = s.players.map((p) => {
         const hand = (p.hand || []).map(c => this._unserCard(c)).filter(Boolean);
         return {
             idx: p.idx, name: p.name,
@@ -11523,6 +11537,7 @@ renderFlip() {
 
 renderMulligan() {
     const pi = this.mulliganPlayer, p = this.players[pi];
+    if (!p) return `<div class="header"><h1>載入中...</h1></div>`; // ★ FIX: Prevent crash if data is 0.1s late
     const stage = this.mulliganStage;
     const color = pi === 0 ? '#6fb6ff' : '#ff7b7b';
     const isAIP = this.isAI(pi);
@@ -15517,9 +15532,11 @@ function renderLobbyOnly() {
     const app = document.getElementById('app');
     if (!app) return;
     if (!window.__lobby || !window.__lobby.active) return;
-    // ★ v4.1 FIX: 如果遊戲已經開始，絕對不要覆蓋遊戲畫面！
-    if (window.__lobby.started) return; 
     
+    // ★ FIX: If the game is already running or loaded, DO NOT overwrite it with the lobby
+    if (window.game && window.game._hasReceivedState && window.game.state !== 'gameover') return;
+    if (window.__lobby.started) return;
+
     const isHost = window.__netState && window.__netState.role === 'host';
     // ★ Guest 還沒被分派座位時，先顯示「等待大廳資料…」
     if (!isHost && (window.__mySeat === null || window.__mySeat === undefined)) {
