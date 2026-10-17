@@ -3139,23 +3139,32 @@ const CARD_DB = [
       }
   }
 },
-{ id:'caozhang', cardId:'123', name:'曹彰', title:'黃鬚兒', faction:'wei', cost:1, power:2, emoji:'🐎', set:'extended',
+{ id:'caozhang', cardId:'123', name:'曹彰', title:'黃鬚兒', faction:'wei', cost:2, power:3, emoji:'🐎', set:'extended',
   skills:['將馳'], isGeneral:true,
-  desc:'將馳：進場時，可額外支付最多5點糧草，每額外支付1點糧草，自己戰力+2。若此時自己戰力比所有敵人目前戰力都高，自己戰力額外+2。',
+  desc:'將馳：進場時，可額外支付最多3點糧草，每額外支付1點糧草，自己戰力+2。若此時自己戰力比所有敵人目前戰力都高，自己戰力額外+2。',
   onEnter(ctx){
-      const p=ctx.game.players[ctx.owner];
-      const pay=Math.min(5,p.food);
-      if(pay>0){
-          p.food-=pay;
-          ctx.self.mod=(ctx.self.mod||0)+pay*2;
-          ctx.log(`${ctx.self.data.name}【將馳】：額外支付 ${pay} 糧，+${pay*2} 戰力`);
+      const g = ctx.game;
+      const p = g.players[ctx.owner];
+      const maxPay = Math.min(3, p.food);
+      
+      if (g.isAI(ctx.owner) || g._inExtraPlay) {
+          const pay = g._caozhangAIDecide(ctx.owner, ctx.field, ctx.self);
+          g._caozhangApply(ctx.owner, ctx.field, ctx.self, pay);
+          return;
       }
-      const myP=ctx.game.getPower(ctx.self,ctx.owner,ctx.field,false);
-      const higher=ctx.enemyField.some(c=>!c.faceDown&&(c.data.power+(c.mod||0))>=myP);
-      if(!higher){
-          ctx.self.mod=(ctx.self.mod||0)+2;
-          ctx.log(`${ctx.self.data.name}【將馳】：戰力最高，再 +2`);
+      
+      if (maxPay === 0) {
+          g._caozhangApply(ctx.owner, ctx.field, ctx.self, 0);
+          return;
       }
+      
+      g.caozhang = {
+          pi: ctx.owner,
+          selfUid: ctx.self.uid,
+          bi: ctx.field,
+          maxPay: maxPay
+      };
+      g.render();
   }
 },
 { id:'caopi', cardId:'124', name:'曹丕', title:'魏文帝', faction:'wei', cost:2, power:3, emoji:'👑', set:'extended',
@@ -6225,7 +6234,7 @@ doPlay(asAmbush, useXianji) {
     }
 
     if (this.guanyu || this.xunyu || this.scry || this.diaochan ||
-    this.liangyuan || this.lukang || this.sunhao || this.jushou || this.caopi) {
+    this.liangyuan || this.lukang || this.sunhao || this.jushou || this.caopi || this.caozhang) {
     this.selected = null; this.render(); return;
 }
     this.doPlayAfterEntry(pi, inst, ambush, bi);
@@ -6454,6 +6463,12 @@ serializeForPlayer(forPlayer) {
             bi: this.caopi.bi,
             sel: [...this.caopi.sel]
         } : null,		
+        caozhang: this.caozhang ? {
+            pi: this.caozhang.pi,
+            selfUid: this.caozhang.selfUid,
+            bi: this.caozhang.bi,
+            maxPay: this.caozhang.maxPay
+        } : null,	
         preEndPassed: this.preEndPassed ? [...this.preEndPassed] : [],
         history: this.history,
         cardsPlayedCount: this.cardsPlayedCount,
@@ -6511,6 +6526,12 @@ applyState(s) {
         bi: s.caopi.bi,
         sel: [...(s.caopi.sel || [])]
     } : null;	
+    this.caozhang = s.caozhang ? {
+        pi: s.caozhang.pi,
+        selfUid: s.caozhang.selfUid,
+        bi: s.caozhang.bi,
+        maxPay: s.caozhang.maxPay
+    } : null;
     this._rematchVotes = s._rematchVotes || [false, false];
     this.cover = false;
     this.countdown = null; this.scry = null; this.quanheng = null;
@@ -7195,6 +7216,73 @@ caopiConfirm() {
     this.caopi = null;
 
     if (selfInst) {
+        this.doPlayAfterEntry(c.pi, selfInst, false, c.bi);
+    } else {
+        this.render();
+    }
+}
+
+/* ★ v4.1: 曹彰【將馳】AI 決策與套用 */
+_caozhangAIDecide(pi, bi, selfInst) {
+    const p = this.players[pi];
+    const maxPay = Math.min(3, p.food);
+    const enemyField = this.players[this.opponentOf(pi)].fields[bi];
+    const myField = p.fields[bi];
+    
+    let basePower = selfInst.data.power + (selfInst.mod || 0);
+    
+    const myOtherPower = myField.reduce((s, c) => s + (c === selfInst ? 0 : this.getPower(c, pi, bi, false)), 0);
+    const oppPower = this.fieldPower(this.opponentOf(pi), bi, false);
+    
+    let bestPay = 0;
+    let bestScore = -Infinity;
+    
+    for (let pay = 0; pay <= maxPay; pay++) {
+        const payPower = basePower + pay * 2;
+        const higher = enemyField.some(c => !c.faceDown && (c.data.power + (c.mod||0)) >= payPower);
+        const finalPower = payPower + (higher ? 0 : 2);
+        
+        let score = finalPower * 2 - pay * 1.5;
+        
+        if (myOtherPower + finalPower > oppPower) {
+            score += 20;
+        }
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestPay = pay;
+        }
+    }
+    return bestPay;
+}
+
+_caozhangApply(pi, bi, selfInst, pay) {
+    const p = this.players[pi];
+    if (pay > 0) {
+        p.food -= pay;
+        selfInst.mod = (selfInst.mod || 0) + pay * 2;
+        this.addLog(pi, `${selfInst.data.name}【將馳】：額外支付 ${pay} 糧，+${pay*2} 戰力`);
+    }
+    
+    const myP = this.getPower(selfInst, pi, bi, false);
+    const enemyField = this.players[this.opponentOf(pi)].fields[bi];
+    const higher = enemyField.some(c => !c.faceDown && (c.data.power + (c.mod||0)) >= myP);
+    if (!higher) {
+        selfInst.mod = (selfInst.mod || 0) + 2;
+        this.addLog(pi, `${selfInst.data.name}【將馳】：戰力最高，再 +2`);
+    }
+}
+
+caozhangConfirm(pay) {
+    if (!this.caozhang) return;
+    const c = this.caozhang;
+    const p = this.players[c.pi];
+    const selfInst = p.fields[c.bi].find(x => x.uid === c.selfUid);
+    
+    this.caozhang = null;
+    
+    if (selfInst) {
+        this._caozhangApply(c.pi, c.bi, selfInst, pay);
         this.doPlayAfterEntry(c.pi, selfInst, false, c.bi);
     } else {
         this.render();
@@ -9378,14 +9466,15 @@ if ((d.skills || []).includes('反骨')) {
     }
     /* 曹彰【將馳】上將：額外支付糧草換戰力。
        糧草充裕 + 對手無強牌時暴強；糧草不足時浪費。 */
+    /* ★ v4.2: 曹彰【將馳】AI 評分 */
     if (d.id === 'caozhang') {
-        const spareFood = p.food - 1;             // 進場費 1，其餘可灌
-        if (spareFood >= 4) score += 8;
+        const spareFood = p.food - 2;             // 進場費 2，其餘可灌
+        if (spareFood >= 3) score += 8;
         else if (spareFood >= 2) score += 5;
         else if (spareFood >= 1) score += 2;
         // 對手目前最高戰力 vs 曹彰可達戰力
         const maxEnemyP = oppFieldNow.filter(c=>!c.faceDown).reduce((m,c)=>Math.max(m, c.data.power+(c.mod||0)), 0);
-        const myMaxP = 2 + Math.min(5, spareFood) * 2 + 2;  // 基礎2 + 灌糧 + 最高+2
+        const myMaxP = 3 + Math.min(3, spareFood) * 2 + 2;  // 基礎3 + 灌糧 + 最高+2
         if (myMaxP > maxEnemyP) score += 4;
         // 賽末點時不該出（灌光糧草但可能失敗）
         if (ctx.mustWinThisRound && myPow <= oppPow) score += 6;
@@ -12963,7 +13052,32 @@ renderModals() {
             </div>
         </div></div>`;
     }
-	
+    
+    /* ★ v4.1: 曹彰 · 將馳 */
+    const czIsLocal = !this.netMode || (this.caozhang && this.caozhang.pi === this.localPlayerIdx);
+    if (this.caozhang && czIsLocal) {
+        const c = this.caozhang;
+        const p = this.players[c.pi];
+        const maxPay = c.maxPay;
+        
+        let buttonsHtml = '';
+        for (let i = 0; i <= maxPay; i++) {
+            buttonsHtml += `<button class="btn btn-big btn-gold" onclick="game.caozhangConfirm(${i})">
+                額外支付 ${i} 糧 (+${i*2} 戰力)
+            </button>`;
+        }
+        
+        h += `<div class="overlay"><div class="modal" style="max-width:480px; text-align:center;">
+            <h2>曹彰 · 將馳</h2>
+            <p>可額外支付最多 ${maxPay} 點糧草。<br>每額外支付 1 點糧草，自己戰力 +2。</p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0;">
+                ${buttonsHtml}
+            </div>
+            <div style="font-size:12px;color:#a89070;">
+                （若支付後戰力比所有敵人高，再額外 +2）
+            </div>
+        </div></div>`;
+    }
     if (this._paymentState) {
         const s = this._paymentState;
         // 預覽
@@ -15015,7 +15129,8 @@ const NET_ACTION_METHODS = [
     'guanyuSelect','guanyuConfirm','guanyuSkip',
     'xunyuSelect','xunyuSelectDest','xunyuConfirm','xunyuSkip',
     'activateJiushi',
-    'voteRematch'
+    'voteRematch',
+    'caozhangConfirm'
 ];
 NET_ACTION_METHODS.forEach(name => {
     const orig = Game.prototype[name];
@@ -15402,6 +15517,9 @@ function renderLobbyOnly() {
     const app = document.getElementById('app');
     if (!app) return;
     if (!window.__lobby || !window.__lobby.active) return;
+    // ★ v4.1 FIX: 如果遊戲已經開始，絕對不要覆蓋遊戲畫面！
+    if (window.__lobby.started) return; 
+    
     const isHost = window.__netState && window.__netState.role === 'host';
     // ★ Guest 還沒被分派座位時，先顯示「等待大廳資料…」
     if (!isHost && (window.__mySeat === null || window.__mySeat === undefined)) {
@@ -15905,10 +16023,10 @@ function handleHostToGuest(data) {
             if (!window.game || !window.game.netMode || window.game.role !== 'guest') {
                 // 首次收到 STATE → 建立 Guest 端 Game 殼
                 const mySeat = data.state.forPlayer ?? window.__mySeat ?? 1;
-				const shell = {
+                const shell = {
 					mode: 'pvp',
 					gameMode: (window.__lobby && window.__lobby.gameMode) || '1v1',
-					playerConfigs: [],
+					playerConfigs: [{ type: 'human' }, { type: 'human' }, { type: 'human' }, { type: 'human' }], // ★ FIX: 避免 Guest 誤認玩家是 AI
 					playerNames: [],
 					netMode: true,
 					role: 'guest',
