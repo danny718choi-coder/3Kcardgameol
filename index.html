@@ -6445,7 +6445,8 @@ serializeForPlayer(forPlayer) {
         _v: 1, forPlayer, seed: this.seed,
         gameMode: this.gameMode, // ★ FIX: Send game mode to guest
         players: this.players.map((p, pi) => serP(p, pi)),
-        deck: this.deck.map(c => this._serCard(c)),
+        // ★ FIX: Send dummy deck cards to Guest to save bandwidth (Guest only needs deck length)
+        deck: new Array(this.deck.length).fill({ dataId: '__hidden__' }),
         archive: this.archive.map(c => this._serCard(c)),
         flipCards: this.flipCards ? this.flipCards.map(c => this._serCard(c)) : null,
         flipRevealed: this.flipRevealed ? [...this.flipRevealed] : null,
@@ -15924,18 +15925,16 @@ function attachHostHandlers(c, cfg) {
 
 function connectToHost(code) {
     if (!peer || peer.destroyed) return;
-    const connOptions = { reliable: true };
-    const ua = navigator.userAgent;
-    if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
-        connOptions.serialization = 'json';
-    }
+    // ★ FIX: Force JSON for everyone (much more stable over TURN/internet)
+    const connOptions = { reliable: true, serialization: 'json' };
     conn = peer.connect('sanguo-flash-' + code, connOptions);
 
+    // ★ FIX: Increase timeout to 20 seconds for distal connections
     const connTimeoutId = setTimeout(() => {
         if (!conn || !conn.open) {
             try { if (conn) conn.close(); } catch (e) {}
         }
-    }, 15000);
+    }, 20000);
 
     conn.on('open', () => {
         clearTimeout(connTimeoutId);
