@@ -3021,8 +3021,8 @@ const CARD_DB = [
 },
 { id:'xuchu', cardId:'108', name:'許褚', title:'虎痴', faction:'wei', cost:3, power:5, emoji:'💪', set:'vanilla',
   skills:['虎痴'],
-  desc:'虎痴：陣地結算前，若對手先放棄跟牌，自己戰力+2。',
-  onSettle(ctx){if(ctx.game.firstPasser===ctx.opponent){ctx.log(`${ctx.self.data.name}【虎痴】：對手先放棄，+2 戰力（已鎖定）`);}}
+  desc:'虎痴：陣地結算前，若對手先放棄跟牌，自己戰力+3。',
+  onSettle(ctx){if(ctx.game.firstPasser===ctx.opponent){ctx.log(`${ctx.self.data.name}【虎痴】：對手先放棄，+3 戰力（已鎖定）`);}}
 },
 { id:'zhangliao', cardId:'109', name:'張遼', title:'襲敵不備', faction:'wei', cost:3, power:7, emoji:'🏇', set:'vanilla',
   skills:['潰銳','止啼'], isGeneral:true,
@@ -3494,109 +3494,78 @@ const CARD_DB = [
 /* ============ 群 原版 301-303 ============ */
 { id:'diaochan', cardId:'302', name:'貂蟬', title:'閉月羞花', faction:'qun', cost:2, power:1, emoji:'🌸', set:'vanilla',
   skills:['離間'],
-  desc:'離間：進場時，若對陣有至少2名男性角色，選擇一項：\n① 移除自己與其中戰力最小的角色。\n② 自己戰力+其中戰力最高角色目前戰力的一半（向上取整）。',
+  desc:'離間：進場時，若對陣有至少2名男性角色，選擇一項：\n① 選擇並移除其中戰力最小的其中一名角色。\n② 自己戰力+其中戰力最高角色目前戰力的一半（向上取整）。',
   onEnter(ctx){
       const game = ctx.game;
       const pi = ctx.owner, bi = ctx.field, oppPi = ctx.opponent;
 
-      // ── 1. 收集所有對陣正面男性（含被保護的） ──
-      const malesAll = ctx.enemyField.filter(c =>
-          !c.faceDown && c.data.male !== false
-      );
-      if (malesAll.length < 2) return;   // 不足 2 名，不觸發
+      // ── 1. 收集所有對陣正面男性 ──
+      const malesAll = ctx.enemyField.filter(c => !c.faceDown && c.data.male !== false);
+      if (malesAll.length < 2) return;
 
-      // ── 2. 可移除的男性（排除被堅守 / 空城保護） ──
-      const malesRemovable = malesAll.filter(c =>
-          !game._isJianshouProtected(c, oppPi, bi)
-      );
+      // ── 2. 可移除的男性 ──
+      const malesRemovable = malesAll.filter(c => !game._isJianshouProtected(c, oppPi, bi));
 
-      // ── 3. 最弱者（從可移除的挑）／最強者（從全部挑） ──
-      const weakest = malesRemovable.length > 0
-          ? malesRemovable.reduce((a, c) =>
-              ((c.data.power + (c.mod||0)) < (a.data.power + (a.mod||0)) ? c : a))
-          : null;
-      const highest = malesAll.reduce((a, c) =>
-          ((c.data.power + (c.mod||0)) > (a.data.power + (a.mod||0)) ? c : a));
+      // ── 3. 找出最弱者與最強者 ──
+      let weakestCandidates = [];
+      let minPower = 999;
+      if (malesRemovable.length > 0) {
+          minPower = Math.min(...malesRemovable.map(c => c.data.power + (c.mod || 0)));
+          weakestCandidates = malesRemovable.filter(c => (c.data.power + (c.mod || 0)) === minPower);
+      }
+      
+      const highest = malesAll.reduce((a, c) => ((c.data.power + (c.mod||0)) > (a.data.power + (a.mod||0)) ? c : a));
       const highestPower = highest.data.power + (highest.mod || 0);
       const gainB = Math.ceil(highestPower / 2);
 
-      // ── 4. AI / 巢狀（奇策）自動決策 ──
+      // ── 4. AI / 巢狀決策 ──
       if (game.isAI(pi) || game._inExtraPlay) {
-          let useRemove;
-          if (!weakest) {
-              // A 不可用（所有男性都被保護）→ 強制 B
-              useRemove = false;
-          } else {
-              // ═══ 收集所有決策依據 ═══
-              const weakPow = (weakest.data.power || 0) + (weakest.mod || 0);
-              const threatA = game.cardThreatValue(weakest);
-              const selfThreat = game.cardThreatValue(ctx.self);
-              const myPow = game.fieldPower(pi, bi, false);
-              const oppPow = game.fieldPower(oppPi, bi, false);
-              const lead = myPow - oppPow;
-              const oppWins = game.players[oppPi].wins;
-              const mustWinRound = (oppWins === 1);           // 對手已 1 勝 → 這輪必勝
-              const isFinalRound = (game.round >= game.fieldCount);
-              const decisive = mustWinRound || isFinalRound;
-
-              // ═══ 兩個選項的「戰力差」變化 ═══
-              //   A：自己 -1，弱者 -weakPow → 淨變化 +(weakPow - 1)
-              //   B：自己 +gainB → 淨變化 +gainB
-              const swingA = weakPow - 1;
+          let useRemove = false;
+          
+          if (weakestCandidates.length > 0) {
+              // 選擇 A 的最佳目標（威脅值最高者）
+              let bestTargetA = weakestCandidates[0];
+              let maxThreat = game.cardThreatValue(bestTargetA);
+              for (let i = 1; i < weakestCandidates.length; i++) {
+                  const t = game.cardThreatValue(weakestCandidates[i]);
+                  if (t > maxThreat) { maxThreat = t; bestTargetA = weakestCandidates[i]; }
+              }
+              
+              const swingA = minPower; // 貂蟬不消失，純賺敵方戰力差
               const swingB = gainB;
-
-              // ═══ 兩個選項的「威脅值」變化（僅 A 有效）═══
-              //   A 移除弱者的威脅值，但失去自己（通常低威脅）
-              const threatSwingA = threatA - selfThreat;
-
-              // ═══ 決策核心 ═══
-              if (decisive) {
-                  // ── 決勝輪：追求最大即時戰力差 ──
-                  // 直接比較兩個選項的淨戰力 swing
-                  useRemove = swingA > swingB;
-              } else if (lead >= 6) {
-                  // ── 大幅領先 ──
-                  // 用 A 減少對手資源（避免對手拖入長期戰）
-                  // 若弱者威脅值高，A 更值；若弱者只是廢牌，B 保留自己更好
-                  if (threatSwingA >= 5) useRemove = true;
-                  else if (swingA >= swingB) useRemove = true;
-                  else useRemove = false;
-              } else if (lead <= -6) {
-                  // ── 大幅落後 ──
-                  // 需要立即補戰力，B 為首選
-                  // 例外：若 A 能移除對手關鍵高威脅牌 + 戰力上也不虧
-                  if (threatSwingA >= 8 && swingA >= 0) useRemove = true;
-                  else useRemove = false;
-              } else {
-                  // ── 一般情境：綜合評估 ──
-                  // 戰力 swing 為主，威脅 swing 為輔
-                  const scoreA = swingA + threatSwingA * 0.5;
-                  const scoreB = swingB;
-                  useRemove = scoreA > scoreB;
+              
+              if (swingA > swingB) {
+                  useRemove = true;
+              } else if (maxThreat >= 6 && swingA >= swingB - 1) {
+                  // 弱者威脅高（如輔助或光環），即使戰力差略低也要殺
+                  useRemove = true;
+              } else if (minPower <= 1 && gainB >= 2) {
+                  // 只能殺 1 戰力的廢物，且吸收能獲得大量戰力，絕對選 B
+                  useRemove = false;
+              }
+              
+              if (useRemove) {
+                  game.flashRemove(bestTargetA);
+                  ctx.enemyField.splice(ctx.enemyField.indexOf(bestTargetA), 1);
+                  game._removeCard(bestTargetA, oppPi);
+                  ctx.log(`${ctx.self.data.name}【離間】：移除敵方 ${bestTargetA.data.name}`);
               }
           }
-
-          // ═══ 執行決策 ═══
-          if (useRemove && weakest) {
-              ctx.myField.splice(ctx.myField.indexOf(ctx.self), 1);
-              game.archive.push(ctx.self);
-              ctx.enemyField.splice(ctx.enemyField.indexOf(weakest), 1);
-              game.archive.push(weakest);
-              ctx.log(`${ctx.self.data.name}【離間】：與 ${weakest.data.name} 一同進入棄牌堆`);
-          } else {
+          
+          if (!useRemove) {
               ctx.self.mod = (ctx.self.mod || 0) + gainB;
               ctx.log(`${ctx.self.data.name}【離間】：吸收 ${highest.data.name} 的戰力，+${gainB}`);
           }
           return;
       }
 
-      // ── 5. 人類玩家 → 開啟 modal ──
+      // ── 5. 人類玩家 ──
       game.diaochan = {
           pi, selfUid: ctx.self.uid, bi,
-          weakestUid: weakest ? weakest.uid : null,
+          weakestCandidates: weakestCandidates.map(c => c.uid),
           highestUid: highest.uid,
           gainB,
-          mode: null
+          sel: weakestCandidates.length > 0 ? weakestCandidates[0].uid : null
       };
   }
 },
@@ -4211,8 +4180,8 @@ const FAQ_DB = {
         title: '許褚 · 虎痴',
         qa: [
             { q: '虎痴什麼時候鎖定？',
-              a: '在<b>進入「陣地結算前」階段的那一瞬間</b>，系統會檢查 `firstPasser`（第一個放棄跟牌的人）。<br>若 `firstPasser` 是<b>對手</b> → 鎖定 +2<br>否則 → 鎖定 0' },
-            { q: '為什麼要鎖定？',
+              a: '在<b>進入「陣地結算前」階段的那一瞬間</b>，系統會檢查 `firstPasser`（第一個放棄跟牌的人）。<br>若 `firstPasser` 是<b>對手</b> → 鎖定 +3<br>否則 → 鎖定 0' },
+			  { q: '為什麼要鎖定？',
               a: '因為 pre-end 階段還可能有人出牌（魏延、鄧艾等）。<br>如果動態算，這些出牌可能改變 `firstPasser`。<br>鎖定後保證「進入 pre-end 那一刻的狀態」是最終判定依據。' },
             { q: 'pre-end 期間對手才放棄，會影響虎痴嗎？',
               a: '<b>不會</b>。`firstPasser` 只在 turn 階段（一般出牌階段）設定，pre-end 的「放棄出牌」不影響它。' },
@@ -4793,7 +4762,14 @@ constructor(cfg) {
         const t = seatCfg[i].type;
         const displayName = (cfg.playerNames && cfg.playerNames[i]) || names[i];
         const p = this.mkPlayer(displayName, i);
-        p.botType = (t === 'human' || t === null || t === undefined) ? null : t;
+        let botType = (t === 'human' || t === null || t === undefined) ? null : t;
+        let challengeLevel = null;
+        if (t === 'c3' || t === 'c6' || t === 'c9') {
+            botType = 'hard';
+            challengeLevel = t;
+        }
+        p.botType = botType;
+        p.challengeLevel = challengeLevel;
         p.teamId = this.seatTeam[i];
         // 🎭 AI 個性指派（20% 友善 / 20% 冷酷 / 60% 惡毒）
         if (p.botType) {
@@ -4820,16 +4796,21 @@ constructor(cfg) {
         }
     }
 
-    /* ★ v4.2: 套用挑戰加成（對手 = 席位 1） */
-    if (this._challengeBonus && this._challengeBonus.oppFood) {
-        this.players[1].food += this._challengeBonus.oppFood;
+    /* ★ v4.2: 單機挑戰模式指定給席位 1 */
+    if (this.cfg._challengeMode && this.cfg._challengeLevel) {
+        this.players[1].challengeLevel = this.cfg._challengeLevel;
     }
-    /* ★ v4.0 fix: oppMaxFood（糧草上限）+ oppRefill（每輪補給）*/
-    if (this._challengeBonus && this._challengeBonus.oppMaxFood) {
-        this.players[1].maxFood += this._challengeBonus.oppMaxFood;
-    }
-    if (this._challengeBonus && this._challengeBonus.oppRefill) {
-        this.players[1].bonusRefill += this._challengeBonus.oppRefill;
+    /* ★ v4.3: 統一處理每個座位的挑戰加成（網路對戰或單機） */
+    for (let i = 0; i < this.numPlayers; i++) {
+        const p = this.players[i];
+        if (p.challengeLevel) {
+            const def = CHALLENGE_DEFS.find(c => c.id === p.challengeLevel);
+            if (def) {
+                p.food += def.oppFood;
+                p.maxFood += def.oppMaxFood;
+                p.bonusRefill += def.oppRefill;
+            }
+        }
     }
 
     this.buildDeck();
@@ -4904,7 +4885,7 @@ mkPlayer(name, idx) {
         bonusRefill:       bonus.refill       || 0,
         bonusInitialCards: bonus.initialCards || 0,
         passed: false, mustFaceUp: false, redrawn: false, mulliganDone: false, pendingBuffs: {},
-        roundSpent: 0, lastFaceUpEnemy: lfue, botType: null, teamId: null };
+        roundSpent: 0, lastFaceUpEnemy: lfue, botType: null, challengeLevel: null, teamId: null };
 }
 
 /* ============ Player relationship helpers ============ */
@@ -4956,14 +4937,16 @@ newInst(def) {
         playedBy: null };   // ★ v3.8
 }
 dealOpening() {
-    for (let pi = 0; pi < this.numPlayers; pi++) {
-        let n = this.cfg.initialCards;
-        if (this._challengeBonus && pi === 1 && this._challengeBonus.oppHand) {
-            n += this._challengeBonus.oppHand;
+        for (let pi = 0; pi < this.numPlayers; pi++) {
+            let n = this.cfg.initialCards;
+            const p = this.players[pi];
+            if (p.challengeLevel) {
+                const def = CHALLENGE_DEFS.find(c => c.id === p.challengeLevel);
+                if (def && def.oppHand) n += def.oppHand;
+            }
+            this.drawTo(pi, n);
         }
-        this.drawTo(pi, n);
     }
-}
 drawTo(pi, n) {
     for (let i = 0; i < n; i++) {
         if (this.deck.length === 0) this.reshuffle();
@@ -6437,6 +6420,7 @@ serializeForPlayer(forPlayer) {
             roundSpent: p.roundSpent || 0,
             cardsPlayedByPlayer: p.cardsPlayedByPlayer || 0,
             lianyingUsed: !!p.lianyingUsed,
+            challengeLevel: p.challengeLevel || null,
             oneShotBuffs: p.oneShotBuffs || null,
             lastFaceUpEnemy: (p.lastFaceUpEnemy || []).map(c => c ? c.uid : null)
         };
@@ -6506,6 +6490,7 @@ serializeForPlayer(forPlayer) {
             roundSpent: p.roundSpent || 0,
             cardsPlayedByPlayer: p.cardsPlayedByPlayer || 0,
             lianyingUsed: !!p.lianyingUsed,
+            challengeLevel: p.challengeLevel || null,
             oneShotBuffs: p.oneShotBuffs,
             lastFaceUpEnemy: new Array(this.fieldCount).fill(null)
         };
@@ -7681,6 +7666,11 @@ sunhaoPick(cost) {
     else this.render();
 }
 /* ============ 貂蟬【離間】 ============ */
+diaochanSelectWeakest(uid) {
+    if (!this.diaochan) return;
+    this.diaochan.sel = uid;
+    this.render();
+}
 diaochanChoose(useRemove) {
     const dc = this.diaochan;
     if (!dc) return;
@@ -7690,38 +7680,27 @@ diaochanChoose(useRemove) {
     const enemyField = this.players[oppPi].fields[bi];
     const self = myField.find(c => c.uid === dc.selfUid);
 
-    let selfRemoved = false;
-    if (useRemove && dc.weakestUid) {
-        const weakest = enemyField.find(c => c.uid === dc.weakestUid);
-        if (weakest && self) {
-            this.flashRemove(self);
+    if (useRemove) {
+        const targetUid = dc.sel || dc.weakestCandidates[0];
+        const weakest = enemyField.find(c => c.uid === targetUid);
+        if (weakest) {
             this.flashRemove(weakest);
-            myField.splice(myField.indexOf(self), 1);
-            this._removeCard(self, pi);
             enemyField.splice(enemyField.indexOf(weakest), 1);
             this._removeCard(weakest, oppPi);
-            this.addLog(pi, `[R${this.round}] ${self.data.name}【離間】：與 ${weakest.data.name} 一同進入棄牌堆`);
+            this.addLog(pi, `[R${this.round}] ${self.data.name}【離間】：移除敵方 ${weakest.data.name}`);
             this.recordEvent('lijian', { player: pi, mode: 'remove', targetId: weakest.data.id });
-            selfRemoved = true;
         }
-    }
-    if (!selfRemoved && self) {
+    } else if (self) {
         self.mod = (self.mod || 0) + dc.gainB;
         this.addLog(pi, `[R${this.round}] ${self.data.name}【離間】：吸收戰力 +${dc.gainB}`);
         this.recordEvent('lijian', { player: pi, mode: 'buff', gain: dc.gainB, sourceId: dc.highestUid });
     }
 
     this.diaochan = null;
-
-    if (selfRemoved) {
-        // 卡已移除 → 不呼叫 doPlayAfterEntry，但補牌 + finishAction 仍要
-        this.drawOne(pi);
-        this.finishAction();
-    } else {
-        const inst = myField.find(c => c.uid === dc.selfUid);
-        if (inst) this.doPlayAfterEntry(pi, inst, false, bi);
-        else { this.drawOne(pi); this.finishAction(); }
-    }
+    
+    const inst = myField.find(c => c.uid === dc.selfUid);
+    if (inst) this.doPlayAfterEntry(pi, inst, false, bi);
+    else this.render();
 }
 /* ★ 沮授【穩紮】選擇：+糧 or +戰力 */
 jushouChoose(choice) {
@@ -8108,7 +8087,7 @@ _lockSettleBonusFor(inst, pi, bi) {
     // ── 許褚【虎痴】──
     if (sk.includes('虎痴') && inst._huchiLocked === undefined) {
         inst._huchiLocked = true;
-        inst._huchiBonus = (!inst.silenced && this.firstPasser === oppPi) ? 2 : 0;
+        inst._huchiBonus = (!inst.silenced && this.firstPasser === oppPi) ? 3 : 0;
         return;
     }
 
@@ -8807,6 +8786,24 @@ scoreCardAI(c, pi, diff, ctx) {
             x !== c && !x.data.isGeneral && !x.data.forceFaceDown && x.data.power >= 4);
         if (hasBetterCard && lead > 3) score -= 4;
     }
+    /* ★ v4.1: 貂蟬【離間】評分 */
+    if (d.id === 'diaochan') {
+        const males = oppFieldNow.filter(c => !c.faceDown && c.data.male);
+        if (males.length >= 2) {
+            const highest = males.reduce((a, c) => ((c.data.power+(c.mod||0)) > (a.data.power+(a.mod||0)) ? c : a));
+            const gain = Math.ceil((highest.data.power + (highest.mod||0)) / 2);
+            
+            // 吸收一半戰力非常可觀
+            score += gain * 2;
+            
+            // 如果打出她可以直接贏下這塊陣地，大幅加分
+            if (myPow + gain > oppPow) score += 10;
+        } else {
+            // 對陣不足 2 男性，白板，扣分
+            score -= 15;
+        }
+    }
+
     /* ★ v4.5: 李嚴 腹鱗（>=5 且只算其他牌 + 手上潛在懲罰）
        邏輯：
          ① 場上已有的 >=5 基礎戰力牌 → 立即扣分（每張 -3）
@@ -9064,12 +9061,47 @@ scoreCardAI(c, pi, diff, ctx) {
             if (hasCaorenInHand && enemyCount >= 2) score += 5;
         }
     }
-    /* 許褚 虎痴：對手先放棄 → +2 */
+    /* ★ v4.2: 許褚【虎痴】深度經濟 AI 評分 */
     if (d.id === 'xuchu') {
-        if (opp.passed && ctx.isFirstMoveOfRound === false) {
-            // 對手已放棄，但還沒結算 → 虎痴會觸發
-            score += 4;
+        const foodAfter = p.food - d.cost;
+        const cheapCards = p.hand.filter(x => x.uid !== c.uid && x.data.cost <= 1).length;
+        const expensiveCards = p.hand.filter(x => x.uid !== c.uid && x.data.cost >= 3).length;
+        
+        let xuchuScore = 0;
+        
+        // 1. 賽末點 / 最後一輪：無視經濟，全力求勝
+        if (ctx.mustWinThisRound || isLastRound) {
+            const expectedPower = 5 + (opp.passed ? 3 : 0);
+            if (myPow + expectedPower > oppPow) xuchuScore += 50;
+            else xuchuScore += 10; // 至少是個 5/8 的大白板
+        } else {
+            // 2. 對手已放棄，且許褚剛好能絕殺（且不是大幅領先的浪費）
+            if (opp.passed && (myPow + 8 > oppPow) && (myPow <= oppPow + 5)) {
+                xuchuScore += 40;
+            }
+            
+            // 3. 第一手懲罰（除非糧草極度充裕）
+            if (ctx.isFirstMoveOfRound) {
+                if (p.food >= 10) xuchuScore -= 10;
+                else xuchuScore -= 100; // 絕對不第一手出
+            }
+            
+            // 4. 大幅領先時的浪費懲罰（省糧草給下一輪）
+            if (myPow - oppPow >= 5) {
+                xuchuScore -= 30;
+            }
+            
+            // 5. 經濟評估
+            if (foodAfter === 0 && p.hand.length > 1) {
+                xuchuScore -= 50; // 出完直接破產，還有牌打不出
+            } else if (foodAfter <= 1 && expensiveCards >= 2) {
+                xuchuScore -= 30; // 剩下的糧草無法支撐手牌的大牌
+            } else if (foodAfter >= 3 && cheapCards >= 2) {
+                xuchuScore += 15; // 還有餘力打小牌，完美節奏
+            }
         }
+        
+        score += xuchuScore;
     }
     /* ★ 張遼 潰銳/止啼：潰銳要贏才觸發，止啼要有正面目標 */
     if (d.id === 'zhangliao') {
@@ -12926,19 +12958,25 @@ renderModals() {
     if (this.diaochan && !this.isAI(this.diaochan.pi)) {
         const dc = this.diaochan;
         const opp = this.players[this.opponentOf(dc.pi)];
-        const weakest = dc.weakestUid ? opp.fields[dc.bi].find(c => c.uid === dc.weakestUid) : null;
+        const weakestCards = opp.fields[dc.bi].filter(c => dc.weakestCandidates.includes(c.uid));
         const highest = opp.fields[dc.bi].find(c => c.uid === dc.highestUid);
         if (highest) {
             h += `<div class="overlay"><div class="modal" style="max-width:680px;">
                 <h2>貂蟬 · 離間</h2>
                 <p>對陣有 2 名以上男性角色。選擇下列其中一種效果：</p>
                 <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:16px 0;">
-                    ${weakest ? `<div style="flex:1;min-width:180px;padding:12px;border:1px solid rgba(255,120,120,.5);border-radius:8px;text-align:center;background:rgba(120,20,20,.18);">
-                        <div style="font-size:12px;color:#ff7b7b;margin-bottom:8px;font-weight:bold;">選項 A：同歸於盡</div>
-                        ${this.cardHTML(weakest, { forceReveal: true, noHighlight: true })}
+                    ${weakestCards.length > 0 ? `<div style="flex:1;min-width:180px;padding:12px;border:1px solid rgba(255,120,120,.5);border-radius:8px;text-align:center;background:rgba(120,20,20,.18);">
+                        <div style="font-size:12px;color:#ff7b7b;margin-bottom:8px;font-weight:bold;">選項 A：移除最弱者</div>
+                        <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+                            ${weakestCards.map(c => `
+                                <div class="${dc.sel === c.uid ? 'sel' : ''} clickable" style="cursor:pointer;" onclick="game.diaochanSelectWeakest('${c.uid}')">
+                                    ${this.cardHTML(c, { forceReveal: true, noHighlight: true })}
+                                </div>
+                            `).join('')}
+                        </div>
                         <div style="font-size:12px;color:#d8c8a0;margin-top:8px;line-height:1.6;">
-                            移除自己與 <b>${weakest.data.name}</b><br>
-                            <span style="color:#a89070;">（目前戰力 ${weakest.data.power + (weakest.mod || 0)}）</span>
+                            移除敵方 <b>${dc.sel ? opp.fields[dc.bi].find(c=>c.uid===dc.sel).data.name : '?'}</b><br>
+                            <span style="color:#a89070;">（貂蟬保留在場上）</span>
                         </div>
                     </div>` : ''}
                     <div style="flex:1;min-width:180px;padding:12px;border:1px solid rgba(120,255,120,.5);border-radius:8px;text-align:center;background:rgba(20,80,20,.18);">
@@ -12951,7 +12989,7 @@ renderModals() {
                     </div>
                 </div>
                 <div style="text-align:center;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                    ${weakest ? `<button class="btn btn-red btn-big" onclick="game.diaochanChoose(true)">選 A：同歸於盡</button>` : ''}
+                    ${weakestCards.length > 0 ? `<button class="btn btn-red btn-big" onclick="game.diaochanChoose(true)">選 A：移除</button>` : ''}
                     <button class="btn btn-green btn-big" onclick="game.diaochanChoose(false)">選 B：吸收 +${dc.gainB} 戰力</button>
                 </div>
             </div></div>`;
@@ -13374,18 +13412,24 @@ const CHALLENGE_LEVELS = [
 const CHALLENGE_DEFS = [
     { id:'c0', name:'挑戰 0 · 基礎對決', desc:'對抗困難 AI，公平對局',
       base:40,  oppFood:0, oppRefill:0, oppHand:0, oppMaxFood:0 },
-    { id:'c1', name:'挑戰 1 · 資源劣勢', desc:'對抗困難 AI（對手起始糧草 +1）',
-      base:60,  oppFood:1, oppRefill:0, oppHand:0, oppMaxFood:0 },
-    { id:'c2', name:'挑戰 2 · 補給劣勢', desc:'對抗困難 AI（對手每輪補給 +1）',
-      base:90,  oppFood:0, oppRefill:1, oppHand:0, oppMaxFood:0 },
-    { id:'c3', name:'挑戰 3 · 全面劣勢', desc:'對抗困難 AI（對手每輪補給 +1、起始手牌 +1）',
-      base:130, oppFood:0, oppRefill:1, oppHand:1, oppMaxFood:0 },
-    { id:'c4', name:'挑戰 4 · 帝國崛起', desc:'對抗困難 AI（+1 起始糧、+1 糧上限、+1 每輪補給、+1 起始手牌）',
-      base:180, oppFood:1, oppRefill:1, oppHand:1, oppMaxFood:1 },
-    { id:'c5', name:'挑戰 5 · 泰山壓頂', desc:'對抗困難 AI（+2 糧上限、+2 每輪補給、+1 起始手牌）',
-      base:240, oppFood:0, oppRefill:2, oppHand:1, oppMaxFood:2 },
-    { id:'c6', name:'挑戰 6 · 無間地獄', desc:'對抗困難 AI（+2 糧上限、+2 每輪補給、+2 起始手牌）',
-      base:300, oppFood:0, oppRefill:2, oppHand:2, oppMaxFood:2 }
+    { id:'c1', name:'挑戰 1 · 資源劣勢', desc:'對抗困難 AI（+1 起始糧、+1 糧上限）',
+      base:55,  oppFood:1, oppRefill:0, oppHand:0, oppMaxFood:1 },
+    { id:'c2', name:'挑戰 2 · 補給劣勢', desc:'對抗困難 AI（+1 起始糧、+1 糧上限、+1 每輪補給）',
+      base:75,  oppFood:1, oppRefill:1, oppHand:0, oppMaxFood:1 },
+    { id:'c3', name:'挑戰 3 · 全面劣勢', desc:'對抗困難 AI（+1 起始糧、+1 糧上限、+1 每輪補給、+1 起始手牌）',
+      base:100, oppFood:1, oppRefill:1, oppHand:1, oppMaxFood:1 },
+    { id:'c4', name:'挑戰 4 · 帝國崛起', desc:'對抗困難 AI（+2 起始糧、+2 糧上限、+1 每輪補給、+1 起始手牌）',
+      base:130, oppFood:2, oppRefill:1, oppHand:1, oppMaxFood:2 },
+    { id:'c5', name:'挑戰 5 · 泰山壓頂', desc:'對抗困難 AI（+2 起始糧、+2 糧上限、+2 每輪補給、+1 起始手牌）',
+      base:170, oppFood:2, oppRefill:2, oppHand:1, oppMaxFood:2 },
+    { id:'c6', name:'挑戰 6 · 無間地獄', desc:'對抗困難 AI（+2 起始糧、+2 糧上限、+2 每輪補給、+2 起始手牌）',
+      base:220, oppFood:2, oppRefill:2, oppHand:2, oppMaxFood:2 },
+    { id:'c7', name:'挑戰 7 · 深淵凝視', desc:'對抗困難 AI（+3 起始糧、+3 糧上限、+2 每輪補給、+2 起始手牌）',
+      base:280, oppFood:3, oppRefill:2, oppHand:2, oppMaxFood:3 },
+    { id:'c8', name:'挑戰 8 · 絕境求生', desc:'對抗困難 AI（+3 起始糧、+3 糧上限、+3 每輪補給、+2 起始手牌）',
+      base:360, oppFood:3, oppRefill:3, oppHand:2, oppMaxFood:3 },
+    { id:'c9', name:'挑戰 9 · 神話降臨', desc:'對抗困難 AI（+3 起始糧、+3 糧上限、+3 每輪補給、+3 起始手牌）',
+      base:450, oppFood:3, oppRefill:3, oppHand:3, oppMaxFood:3 }
 ];
 
 const CHALLENGE_STATS_KEY = 'sanguo_challengeStats';
@@ -15146,7 +15190,15 @@ const NET_ACTION_METHODS = [
     'xunyuSelect','xunyuSelectDest','xunyuConfirm','xunyuSkip',
     'activateJiushi',
     'voteRematch',
-    'caozhangConfirm'
+    'caozhangConfirm',
+    'diaochanChoose', 'diaochanSelectWeakest',
+    'jushouChoose', 'caopiConfirm', 'caopiToggle',
+    'liangyuanSelect', 'liangyuanConfirm', 'liangyuanSkip',
+    'lukangSelect', 'lukangConfirm', 'lukangSkip',
+    'sunhaoPick',
+    'paymentSelect', 'paymentConfirm',
+    'coldArrowToggle', 'coldArrowSetFencheng', 'coldArrowCancel', 'coldArrowConfirm',
+    'toggleFieldExpand'
 ];
 NET_ACTION_METHODS.forEach(name => {
     const orig = Game.prototype[name];
@@ -15305,13 +15357,16 @@ function renderLobbyHost() {
                 <button onclick="hostKickGuest(${i})" title="踢出">✖ 踢出</button>
             </div>`;
         } else if (slot.type === 'bot') {
-            const diffLabel = { easy: '簡單', medium: '普通', hard: '困難' }[slot.difficulty] || '普通';
+            const diffLabel = { easy: '簡單', medium: '普通', hard: '困難', c3: '挑戰3', c6: '挑戰6', c9: '挑戰9' }[slot.difficulty] || '普通';
             status = `<span class="slot-status bot">🤖 ${diffLabel}</span>`;
             controls = `<div class="slot-controls">
                 <select onchange="hostSetBotDifficulty(${i}, this.value)">
                     <option value="easy"   ${slot.difficulty==='easy'?'selected':''}>簡單</option>
                     <option value="medium" ${slot.difficulty==='medium'?'selected':''}>普通</option>
                     <option value="hard"   ${slot.difficulty==='hard'?'selected':''}>困難</option>
+                    <option value="c3"     ${slot.difficulty==='c3'?'selected':''}>挑戰3 AI</option>
+                    <option value="c6"     ${slot.difficulty==='c6'?'selected':''}>挑戰6 AI</option>
+                    <option value="c9"     ${slot.difficulty==='c9'?'selected':''}>挑戰9 AI</option>
                 </select>
                 <button onclick="hostClearSlot(${i})">改回空位</button>
             </div>`;
@@ -15338,7 +15393,10 @@ function renderLobbyHost() {
         <div class="lobby-room-code">
             <div style="font-size:12px;color:#a89070;">房間代碼</div>
             <div class="code">${(window.__netState && window.__netState.roomCode) || '??????'}</div>
-            <button class="btn btn-gold" onclick="copyRoomCode('${(window.__netState && window.__netState.roomCode) || ''}')">📋 複製房間代碼</button>
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
+                <button class="btn btn-gold" onclick="copyRoomCode('${(window.__netState && window.__netState.roomCode) || ''}')">📋 複製代碼</button>
+                <button class="btn btn-green" onclick="shareRoomCode('${(window.__netState && window.__netState.roomCode) || ''}')">🔗 分享邀請</button>
+            </div>
         </div>
 
         <div class="lobby-section">
@@ -15398,7 +15456,7 @@ function renderLobbyGuest() {
                 ? `<span class="slot-status ready">✓ 已準備</span>`
                 : `<span class="slot-status wait">⏳ 等待中…</span>`;
         } else if (slot.type === 'bot') {
-            const diffLabel = { easy: '簡單', medium: '普通', hard: '困難' }[slot.difficulty] || '普通';
+            const diffLabel = { easy: '簡單', medium: '普通', hard: '困難', c3: '挑戰3', c6: '挑戰6', c9: '挑戰9' }[slot.difficulty] || '普通';
             status = `<span class="slot-status bot">🤖 ${diffLabel}</span>`;
         } else {
             status = `<span class="slot-status empty">— 等待加入</span>`;
@@ -15419,6 +15477,10 @@ function renderLobbyGuest() {
         <div class="lobby-room-code">
             <div style="font-size:12px;color:#a89070;">房間代碼</div>
             <div class="code">${(window.__netState && window.__netState.roomCode) || '??????'}</div>
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
+                <button class="btn btn-gold" onclick="copyRoomCode('${(window.__netState && window.__netState.roomCode) || ''}')">📋 複製代碼</button>
+                <button class="btn btn-green" onclick="shareRoomCode('${(window.__netState && window.__netState.roomCode) || ''}')">🔗 分享邀請</button>
+            </div>
         </div>
 
         <div class="lobby-section">
@@ -15641,6 +15703,33 @@ function copyRoomCode(code) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(() => alert('✅ 已複製房間代碼：' + code)).catch(fallback);
     } else fallback();
+}
+
+/* ★ v4.1: 分享房間邀請 */
+function shareRoomCode(code) {
+    if (!code) return;
+    const url = window.location.href;
+    const text = `快來加入我的三國風雲對戰！\n房間代碼：${code}\n連結：${url}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: '三國風雲 - 線上對戰',
+            text: text,
+            url: url
+        }).catch((err) => {
+            console.log('分享取消或失敗:', err);
+        });
+    } else {
+        // 電腦端 fallback：複製完整邀請文字
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`✅ 已複製邀請訊息！\n\n${text}`);
+            }).catch(() => fallbackCopy(text));
+        } else {
+            fallbackCopy(text);
+            alert(`✅ 已複製邀請訊息！\n\n${text}`);
+        }
+    }
 }
 
 function readCfgFromSetup() {
@@ -16612,7 +16701,7 @@ const ACHIEVEMENT_DEFS = [
     { id:'cardsPlayed', name:'名將如雲', desc:'累計打出卡牌種類',   icon:'🎴',
       tiers:[50, 80, 100],unit:'種', statKey:'totalCardsPlayed' },
     { id:'challenges',  name:'天下無雙', desc:'通關挑戰模式關卡',   icon:'🌟',
-      tiers:[2, 4, 7],    unit:'關', statKey:'challengesCleared' }
+      tiers:[2, 7, 10],    unit:'關', statKey:'challengesCleared' }
 ];
 const TIER_LABELS = ['🥉 銅', '🥈 銀', '🥇 金'];
 const TIER_COLORS = ['#cd7f32', '#c0c0c0', '#ffd700'];
