@@ -6448,7 +6448,94 @@ serializeForPlayer(forPlayer) {
             selfUid: this.caopi.selfUid,
             bi: this.caopi.bi,
             sel: [...this.caopi.sel]
-        } : null,		
+        } : null,
+        caozhang: this.caozhang ? {
+            pi: this.caozhang.pi,
+            selfUid: this.caozhang.selfUid,
+            bi: this.caozhang.bi,
+            maxPay: this.caozhang.maxPay
+        } : null,
+        scry: this.scry ? {
+            pi: this.scry.pi,
+            cards: this.scry.cards.map(c => this._serCard(c)),
+            order: this.scry.order,
+            source: this.scry.source
+        } : null,
+        guanyu: this.guanyu ? {
+            pi: this.guanyu.pi,
+            selfUid: this.guanyu.selfUid,
+            bi: this.guanyu.bi,
+            candidates: this.guanyu.candidates,
+            sel: this.guanyu.sel
+        } : null,
+        xunyu: this.xunyu ? {
+            pi: this.xunyu.pi,
+            selfUid: this.xunyu.selfUid,
+            bi: this.xunyu.bi,
+            candidates: this.xunyu.candidates,
+            sel: this.xunyu.sel,
+            dest: this.xunyu.dest
+        } : null,
+        quanheng: this.quanheng ? {
+            pi: this.quanheng.pi,
+            sel: this.quanheng.sel
+        } : null,
+        lianying: this.lianying ? {
+            sel: this.lianying.sel
+        } : null,
+        jianxiong: this.jianxiong ? {
+            pi: this.jianxiong.pi,
+            guess: this.jianxiong.guess
+        } : null,
+        diaochan: this.diaochan ? {
+            pi: this.diaochan.pi,
+            selfUid: this.diaochan.selfUid,
+            bi: this.diaochan.bi,
+            weakestCandidates: this.diaochan.weakestCandidates,
+            highestUid: this.diaochan.highestUid,
+            gainB: this.diaochan.gainB,
+            sel: this.diaochan.sel
+        } : null,
+        liangyuan: this.liangyuan ? {
+            pi: this.liangyuan.pi,
+            selfUid: this.liangyuan.selfUid,
+            bi: this.liangyuan.bi,
+            candidates: this.liangyuan.candidates,
+            sel: this.liangyuan.sel
+        } : null,
+        lukang: this.lukang ? {
+            pi: this.lukang.pi,
+            selfUid: this.lukang.selfUid,
+            bi: this.lukang.bi,
+            candidates: this.lukang.candidates,
+            sel: this.lukang.sel
+        } : null,
+        sunhao: this.sunhao ? {
+            pi: this.sunhao.pi,
+            selfUid: this.sunhao.selfUid,
+            bi: this.sunhao.bi
+        } : null,
+        jushou: this.jushou ? {
+            pi: this.jushou.pi,
+            selfUid: this.jushou.selfUid,
+            bi: this.jushou.bi,
+            wins: this.jushou.wins,
+            cap: this.jushou.cap,
+            revealed: this.jushou.revealed
+        } : null,
+        _paymentState: this._paymentState ? {
+            pi: this._paymentState.pi,
+            cards: this._paymentState.cards.map(c => this._serCard(c)),
+            food: this._paymentState.food,
+            order: this._paymentState.order
+        } : null,
+        _coldArrowState: this._coldArrowState ? {
+            pi: this._coldArrowState.pi,
+            bi: this._coldArrowState.bi,
+            selected: [...this._coldArrowState.selected],
+            useFencheng: this._coldArrowState.useFencheng
+        } : null,
+        preEndPassed: this.preEndPassed ? [...this.preEndPassed] : [],		
         caozhang: this.caozhang ? {
             pi: this.caozhang.pi,
             selfUid: this.caozhang.selfUid,
@@ -6532,11 +6619,89 @@ serializeForPlayer(forPlayer) {
         bi: s.caozhang.bi,
         maxPay: s.caozhang.maxPay
     } : null;
+    this.scry = s.scry ? {
+        pi: s.scry.pi,
+        cards: s.scry.cards.map(c => this._unserCard(c)),
+        order: s.scry.order,
+        source: s.scry.source
+    } : null;
+    this.guanyu = s.guanyu ? {
+        pi: s.guanyu.pi,
+        selfUid: s.guanyu.selfUid,
+        bi: s.guanyu.bi,
+        candidates: s.guanyu.candidates,
+        sel: s.guanyu.sel
+    } : null;
+    this.xunyu = s.xunyu ? {
+        pi: s.xunyu.pi,
+        selfUid: s.xunyu.selfUid,
+        bi: s.xunyu.bi,
+        candidates: s.xunyu.candidates,
+        sel: s.xunyu.sel,
+        dest: s.xunyu.dest
+    } : null;
+    this.quanheng = s.quanheng ? {
+        pi: s.quanheng.pi,
+        sel: s.quanheng.sel
+    } : null;
+    this.lianying = s.lianying ? {
+        sel: s.lianying.sel
+    } : null;
+    this.jianxiong = s.jianxiong ? {
+        pi: s.jianxiong.pi,
+        guess: s.jianxiong.guess
+    } : null;
+    this.diaochan = s.diaochan ? {
+        pi: s.diaochan.pi,
+        selfUid: s.diaochan.selfUid,
+        bi: s.diaochan.bi,
+        weakestCandidates: s.diaochan.weakestCandidates,
+        highestUid: s.diaochan.highestUid,
+        gainB: s.diaochan.gainB,
+        sel: s.diaochan.sel
+    } : null;
+    this.liangyuan = s.liangyuan ? {
+        pi: s.liangyuan.pi,
+        selfUid: s.liangyuan.selfUid,
+        bi: s.liangyuan.bi,
+        candidates: s.liangyuan.candidates,
+        sel: s.liangyuan.sel
+    } : null;
+    this.lukang = s.lukang ? {
+        pi: s.lukang.pi,
+        selfUid: s.lukang.selfUid,
+        bi: s.lukang.bi,
+        candidates: s.lukang.candidates,
+        sel: s.lukang.sel
+    } : null;
+    this.sunhao = s.sunhao ? {
+        pi: s.sunhao.pi,
+        selfUid: s.sunhao.selfUid,
+        bi: s.sunhao.bi
+    } : null;
+    this.jushou = s.jushou ? {
+        pi: s.jushou.pi,
+        selfUid: s.jushou.selfUid,
+        bi: s.jushou.bi,
+        wins: s.jushou.wins,
+        cap: s.jushou.cap,
+        revealed: s.jushou.revealed
+    } : null;
+    this._paymentState = s._paymentState ? {
+        pi: s._paymentState.pi,
+        cards: s._paymentState.cards.map(c => this._unserCard(c)),
+        food: s._paymentState.food,
+        order: s._paymentState.order
+    } : null;
+    this._coldArrowState = s._coldArrowState ? {
+        pi: s._coldArrowState.pi,
+        bi: s._coldArrowState.bi,
+        selected: new Set(s._coldArrowState.selected),
+        useFencheng: s._coldArrowState.useFencheng
+    } : null;
     this._rematchVotes = s._rematchVotes || [false, false];
     this.cover = false;
-    this.countdown = null; this.scry = null; this.quanheng = null;
-    this.jianxiong = null; this.lianying = null; this.guanyu = null;
-    this.xunyu = null; this.xunyou = null;
+    this.countdown = null;
     this._hasReceivedState = true;
     this.render();
 }
@@ -11143,7 +11308,8 @@ _nextActorAfterCurrent() {
 }
 scheduleAI() {
     if (this._destroyed) return;
-    if (this.netMode) return;
+    // ★ FIX: Only the Host runs the AI. The Guest just receives updates.
+    if (this.netMode && this.role !== 'host') return;
     // ★ v4.6: 每次排程前檢查是否卡住
     this._autoUnstickAI();
     if (this._aiPaused) return;                    // ★ 已暫停
