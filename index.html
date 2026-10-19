@@ -469,6 +469,49 @@ body[data-theme="bamboo"] .hb-hand.hand-low,
 body[data-theme="sand"]   .hb-hand.hand-low  { color: #c52828 !important; }
 /* 手牌與糧草間距 */
 .hb-hand { margin-right: 10px !important; }
+
+/* ★ v4.3: 玩家頭像下方的聊天泡泡 */
+.hand-bar.multi .hb-side {
+    position: relative; 
+}
+.hb-chat-bubble {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10, 5, 0, 0.95);
+    border: 1.5px solid #ffd700;
+    padding: 6px 14px;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: bold;
+    z-index: 1000;
+    pointer-events: none;
+    animation: hbBubblePop 3.5s ease-out forwards;
+    white-space: pre-wrap;
+    text-align: center;
+    max-width: 240px;
+    word-break: break-word;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+}
+.hb-chat-bubble::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 7px solid transparent;
+    border-bottom-color: inherit;
+}
+@keyframes hbBubblePop {
+    0% { opacity: 0; transform: translate(-50%, 15px) scale(0.8); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    22% { transform: translate(-50%, 0) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -15px) scale(0.9); }
+}
+
 /* 戰場標題右側資訊區（先後手 + 領先） */
 .bf-head .bf-meta { text-align: right; line-height: 1.35; }
 .bf-head .bf-meta .bf-first-line { font-size: 10px; color: #a89070; letter-spacing: 0; }
@@ -2552,8 +2595,18 @@ function getWinRateColor(pct) {
 }
 /* ============ 全域 UI 縮放 ============ */
 function getUIScale() {
-    try { const s = parseFloat(localStorage.getItem('sanguo_uiscale') || '1'); return (s && s > 0.3 && s < 3) ? s : 1; }
-    catch(e) { return 1; }
+    try {
+        const saved = localStorage.getItem('sanguo_uiscale');
+        if (saved !== null) {
+            const s = parseFloat(saved);
+            return (s && s > 0.3 && s < 3) ? s : 1;
+        }
+        // If no scale is saved yet, detect if the device is a phone/mobile
+        const isMobile = window.matchMedia('(max-width: 768px)').matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        return isMobile ? 0.85 : 1;
+    } catch(e) { 
+        return 1; 
+    }
 }
 function setUIScaleGlobal(s) {
     try { localStorage.setItem('sanguo_uiscale', String(s)); } catch(e) {}
@@ -2623,12 +2676,20 @@ function updateSetMaster(setName) {
 }
 
 function readCardSetConfig() {
-    const read = setName => ({
-        shu: document.getElementById('fac-' + setName + '-shu').checked,
-        wei: document.getElementById('fac-' + setName + '-wei').checked,
-        wu:  document.getElementById('fac-' + setName + '-wu').checked,
-        qun: document.getElementById('fac-' + setName + '-qun').checked
-    });
+    const read = setName => {
+        // 檢查第一個元素是否存在（如果不在主選單，就找不到）
+        const el = document.getElementById('fac-' + setName + '-shu');
+        if (!el) {
+            // 預設全開
+            return { shu: true, wei: true, wu: true, qun: true };
+        }
+        return {
+            shu: el.checked,
+            wei: document.getElementById('fac-' + setName + '-wei').checked,
+            wu:  document.getElementById('fac-' + setName + '-wu').checked,
+            qun: document.getElementById('fac-' + setName + '-qun').checked
+        };
+    };
     return { vanilla: read('vanilla'), extended: read('extended') };
 }
 
@@ -4689,7 +4750,15 @@ constructor(cfg) {
     this._rematchVotes = [false, false];   // Phase 3: [host, guest]
     this.sendToBottom = !!(cfg.sendToBottom); // true = flip cards & redraw discards go to bottom of draw pile
     this.aiTrashTalk  = cfg.aiTrashTalk  !== false;   // 預設開啟
-    this.chatEnabled  = cfg.chatEnabled  !== false;   // 預設開啟
+    if (cfg.quickEmojiEnabled !== undefined || cfg.generalChatEnabled !== undefined) {
+        this.quickEmojiEnabled  = cfg.quickEmojiEnabled  !== false;
+        this.generalChatEnabled = cfg.generalChatEnabled !== false;
+    } else {
+        // 向後相容：舊設定只有一個 chatEnabled
+        this.quickEmojiEnabled  = cfg.chatEnabled !== false;
+        this.generalChatEnabled = cfg.chatEnabled !== false;
+    }
+    this.chatEnabled = this.quickEmojiEnabled || this.generalChatEnabled;   // legacy
     this._chatExpanded = safeStore.get('sanguo_chatExpanded', '1') === '1';
 	
     /* ============ 網路對戰欄位 (Phase 1) ============ */
@@ -4728,7 +4797,9 @@ constructor(cfg) {
         return true;
     })();
     this._pendingCoinReward = null;
-    this._challengeRewarded = false;	
+    this._challengeRewarded = false;
+    this.isTutorial = (cfg._storyStageId === 'tut_1');
+    this.tutorialStep = 0;	
 	
     /* ============ Mode setup ============ */
     const modeKey = GAME_MODE_DEFS[cfg.gameMode] ? cfg.gameMode : '1v1';
@@ -4937,16 +5008,29 @@ newInst(def) {
         playedBy: null };   // ★ v3.8
 }
 dealOpening() {
-        for (let pi = 0; pi < this.numPlayers; pi++) {
-            let n = this.cfg.initialCards;
-            const p = this.players[pi];
-            if (p.challengeLevel) {
-                const def = CHALLENGE_DEFS.find(c => c.id === p.challengeLevel);
-                if (def && def.oppHand) n += def.oppHand;
-            }
-            this.drawTo(pi, n);
-        }
+    if (this.isTutorial) {
+        // Tutorial 1: Custom starting hands
+        this.players[0].hand = [
+            this.newInst(CARD_DB.find(c => c.id === 'liaohua')), // 廖化 (1/2)
+            this.newInst(CARD_DB.find(c => c.id === 'guanyu')),  // 關羽 (3/7)
+            this.newInst(CARD_DB.find(c => c.id === 'huangzhong')) // 黃忠 (2/3)
+        ];
+        this.players[1].hand = [
+            this.newInst(CARD_DB.find(c => c.id === 'fubing_a')), // 伏兵 (1/2)
+            this.newInst(CARD_DB.find(c => c.id === 'huaxiong'))  // 華雄 (2/7)
+        ];
+        return;
     }
+    for (let pi = 0; pi < this.numPlayers; pi++) {
+        let n = this.cfg.initialCards;
+        const p = this.players[pi];
+        if (p.challengeLevel) {
+            const def = CHALLENGE_DEFS.find(c => c.id === p.challengeLevel);
+            if (def && def.oppHand) n += def.oppHand;
+        }
+        this.drawTo(pi, n);
+    }
+}
 drawTo(pi, n) {
     for (let i = 0; i < n; i++) {
         if (this.deck.length === 0) this.reshuffle();
@@ -5673,6 +5757,19 @@ renderCountdown() {
 }
 
 setupFlip() {
+    if (this.isTutorial) {
+        // Force Player to get 9, AI to get 1
+        this.flipCards = [
+            this.newInst(CARD_DB.find(c => c.id === 'lvbu')), // 呂布 (9)
+            this.newInst(CARD_DB.find(c => c.id === 'xushu')) // 徐庶 (1)
+        ];
+        this.flipRevealed = new Array(this.numPlayers).fill(false);
+        this.firstPlayer = null;
+        if (this.flipAutoTimer) { clearTimeout(this.flipAutoTimer); this.flipAutoTimer = null; }
+        this._checkAutoFlip();
+        return;
+    }
+    
     const cards = [];
     for (let i = 0; i < this.numPlayers; i++) {
         if (this.deck.length === 0) this.reshuffle();
@@ -5973,6 +6070,15 @@ startBattle() {
     if (this.itemsEnabled && isItemEquipped('hint_card') && getItemCount('hint_card') > 0) {
         this._sTO(() => this._triggerHintCard(), 900);
     }
+
+    // --- TUTORIAL INIT ---
+    if (this.isTutorial) {
+        this.tutorialStep = 1;
+        this._sTO(() => {
+            showChatBubble(0, "歡迎來到三國風雲！\n你贏了翻牌，先出牌吧！");
+        }, 1000);
+        this.render();
+    }
 }
 
 selectCard(uid) {
@@ -6085,6 +6191,35 @@ getPlayableFields(inst, pi, phase) {
 
 doPlay(asAmbush, useXianji) {
     if (this.cover || this.countdown !== null || !this.selected) return;
+    
+    // --- TUTORIAL PLAY HOOK ---
+    if (this.isTutorial && this.phase === 'turn' && this.current === 0) {
+        const p = this.players[0];
+        const inst = p.hand.find(c => c.uid === this.selected);
+        if (this.tutorialStep === 1) {
+            if (inst.data.id !== 'liaohua') {
+                alert("先試試看打出「廖化」吧！他只需要 1 糧草，就能提供 2 戰力。");
+                this.selected = null;
+                this.render();
+                return;
+            }
+            this.tutorialStep = 2;
+            this._sTO(() => showChatBubble(0, "廖化進場！\n目前你的戰力是 2。"), 500);
+        } else if (this.tutorialStep === 3) {
+            if (inst.data.id !== 'guanyu') {
+                alert("對手變強了，你需要打出「關羽」（7 戰力）才能反超！");
+                this.selected = null;
+                this.render();
+                return;
+            }
+            this.tutorialStep = 4;
+            this._sTO(() => showChatBubble(0, "關羽登場！\n你的戰力高達 9！"), 500);
+        }
+    }
+    // --- END TUTORIAL PLAY HOOK ---
+
+    // ... Rest of the original doPlay code
+	
     // ★ v3.7: preend 階段的人類出牌 → 走 doPreEndPlay（僅限奇襲/奇謀/奔襲卡與馬岱/徐榮埋伏）
     if (this.phase === 'preend') {
         const pep = this.preEndTurn;
@@ -8048,6 +8183,16 @@ finishAction() {
 }
 doPass() {
     if (this.phase !== 'turn' || this.cover || this.countdown !== null) return;
+    
+    // --- TUTORIAL PASS GUARD ---
+    if (this.isTutorial && this.current === 0) {
+        if (this.tutorialStep !== 5) {
+            alert("你現在還有事要做，先跟著提示走吧！");
+            return;
+        }
+        this.tutorialStep = 6; // Finish tutorial
+    }
+    // --- END TUTORIAL PASS GUARD ---
     this._handoffDoneThisTurn = false;
     const pi = this.current, p = this.players[pi];
     if (p.passed) {
@@ -8752,10 +8897,37 @@ doTurnAI() {
     const pi = this.current;
     if (!this.isAI(pi)) return;
     if (this.cover || this.countdown !== null) return;
+
+    // --- TUTORIAL AI ---
+    if (this.isTutorial) {
+        if (this.tutorialStep === 2) {
+            // AI Turn 1: Play 伏兵
+            const card = this.players[pi].hand.find(c => c.data.id === 'fubing_a');
+            this.selected = card.uid;
+            this.render();
+            this._sTO(() => {
+                this.doPlay(false);
+                this.tutorialStep = 3;
+                this._sTO(() => showChatBubble(1, "我打出伏兵！\n現在我們戰力平手。"), 500);
+            }, 1000);
+            return;
+        }
+        if (this.tutorialStep === 4) {
+            // AI Turn 2: Pass
+            this._sTO(() => {
+                this.doPass();
+                this.tutorialStep = 5;
+                this._sTO(() => showChatBubble(1, "你太強了，我放棄！"), 500);
+            }, 1000);
+            return;
+        }
+        return; // Stop AI from doing normal logic during tutorial
+    }
+    // --- END TUTORIAL AI ---
+
     if (this.scry) { this.resolveAIScry(); return; }
     if (this.jianxiong) { this.resolveAIJianxiong(); return; }
     if (this.lianying) { this.lyCancel(); return; }
-    // ★ 其他 modal 開著時，不要 AI 繼續動作
     if (this.guanyu || this.xunyu || this.diaochan || this.quanheng || this.caopi) return;
     this.maybeAutoLianyingAI(pi);
     this.maybeAutoJiushiAI(pi);
@@ -8764,8 +8936,6 @@ doTurnAI() {
     this.selected = decision.card.uid;
     this.render();
     this._sTO(() => {
-        // ★ 陳宮【獻計】AI 判斷
-        // 黑名單：這些上將的戰力直接影響技能門檻 / 已支付糧草 → 不能用
         const XIANJI_EXCLUDE = ['guanyu', 'zhangliao', 'caozhang'];
         let useXianji = false;
         if (decision.card.data.isGeneral && !decision.asAmbush) {
@@ -12051,7 +12221,7 @@ renderHandBar() {
             const isTurn = (this.phase === 'turn' && i === this.current) ||
                            (this.phase === 'preend' && this.preEndTurn === i);
             const isMe = (i === me);
-            return `<div class="hb-side ${isTurn ? 'hb-turn' : ''} ${isMe ? 'hb-me' : ''}" style="border-left:3px solid ${col.border};">
+            return `<div id="hb-side-${i}" class="hb-side ${isTurn ? 'hb-turn' : ''} ${isMe ? 'hb-me' : ''}" style="border-left:3px solid ${col.border};">
                 <span class="hb-lbl" style="color:${col.text};">${p.name}${this.aiIcon(i)}</span>
 				${(() => {
 					const n = p.hand.length;
@@ -12422,6 +12592,27 @@ _predictZhanchuTargets(pi, bi) {
 }
 renderControls() {
     if (this.netMode) {
+    // --- TUTORIAL UI HINTS ---
+    if (this.isTutorial && this.phase === 'turn' && this.current === 0) {
+        let tip = "";
+        if (this.tutorialStep === 1) tip = "👆 點擊下方手牌「廖化」，然後按下「出牌」！";
+        if (this.tutorialStep === 2) tip = "等待對手出牌...";
+        if (this.tutorialStep === 4) tip = "👆 打出「關羽」來反超戰力！";
+        if (this.tutorialStep === 5) tip = "你已經大幅領先！點擊下方「放棄跟牌」來結束這回合！";
+        
+        if (tip) {
+            return `<div class="control-area" style="border: 2px solid #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.5); background: linear-gradient(180deg, rgba(80,60,10,.8), rgba(40,30,5,.8));">
+                <div class="ctrl-info" style="font-size: 16px; color: #fff; font-weight: bold; line-height: 1.6;">
+                    ${tip.replace('\n', '<br>')}
+                </div>
+                <div class="ctrl-buttons">
+                    <button class="btn btn-green" ${(!this.selected) ? 'disabled' : ''} onclick="game.doPlay(false)">出牌</button>
+                    <button class="btn btn-red" ${(this.tutorialStep !== 5) ? 'disabled' : ''} onclick="game.doPass()">放棄跟牌</button>
+                </div>
+            </div>`;
+        }
+    }
+    // --- END TUTORIAL UI ---	
         if (this.phase === 'preend' && this.preEndTurn !== this.localPlayerIdx) {
             return `<div class="control-area">
                 <div class="ctrl-info">等待對手結算前出牌…</div>
@@ -12682,12 +12873,16 @@ renderControls() {
         </div>${fieldPicker}${skillBox}</div>`;
 }
 renderQuickChat() {
-    if (!this.chatEnabled) return '';
     if (this.state === 'gameover') return '';
-    const me = this.netMode ? this.localPlayerIdx : this.current;
+    const showQuickEmoji  = this.quickEmojiEnabled;
+    const showGeneralChat = this.generalChatEnabled;
+    if (!showQuickEmoji && !showGeneralChat) return '';
+
+    // AI-only games (background training): no chat
+    if (this.players.every(p => p.botType)) return '';
+
+    const me = this.netMode ? this.localPlayerIdx : this._localPlayerSeat();
     const isAIP = this.isAI(me);
-    const allBots = this.players.every(p => p.botType);
-    const canAct = !allBots && !isAIP && !this.cover && this.countdown === null;
     const expanded = this._chatExpanded !== false;
     const toggleBtn = `<button class="qc-btn qc-toggle" onclick="game.toggleChatExpand()" title="${expanded ? '收合聊天' : '展開聊天'}">${expanded ? '▼' : '▲'} 💬</button>`;
 
@@ -12698,22 +12893,35 @@ renderQuickChat() {
         </div>`;
     }
 
-    const presetBtns = CHAT_MSG.map((t, i) => {
-        const displayText = t.replace(/\n/g, ' ');
-        return `<button class="qc-btn" data-qc ${canAct ? '' : 'disabled'} onclick="sendChat(CHAT_MSG[${i}])">${displayText}</button>`;
-    }).join('');
-    const emojiBtns = CHAT_EMOJI.map((e, i) =>
-        `<button class="qc-btn qc-emoji" data-qc ${canAct ? '' : 'disabled'} onclick="sendChat(CHAT_EMOJI[${i}])">${e}</button>`
-    ).join('');
-    const hint = allBots ? '<span style="font-size:11px;color:#888;">（AI 自動對話中）</span>'
-                : (isAIP ? '<span style="font-size:11px;color:#888;">（等待 AI 行動…）</span>' : '');
+    const hint = isAIP ? '<span style="font-size:11px;color:#888;">（等待 AI 行動…）</span>' : '';
+
+    let rows = '';
+    if (showQuickEmoji) {
+        const presetBtns = CHAT_MSG.map((t, i) => {
+            const displayText = t.replace(/\n/g, ' ');
+            return `<button class="qc-btn" data-qc onclick="sendChat(CHAT_MSG[${i}])">${displayText}</button>`;
+        }).join('');
+        const emojiBtns = CHAT_EMOJI.map((e, i) =>
+            `<button class="qc-btn qc-emoji" data-qc onclick="sendChat(CHAT_EMOJI[${i}])">${e}</button>`
+        ).join('');
+        rows += `<div class="qc-row">${presetBtns}</div>`;
+        rows += `<div class="qc-row">${emojiBtns}</div>`;
+    }
+    if (showGeneralChat) {
+        rows += `<div class="qc-row" style="margin-top:8px;">
+            <input type="text" id="qc-input" placeholder="輸入訊息 (最多30字，Emoji算1字)..." 
+                style="flex:1; padding:5px 10px; border-radius:6px; border:1px solid #6a4a20; background:#1a1008; color:#ffd700; font-family:inherit; font-size:13px; outline:none;"
+                onkeydown="if(event.key==='Enter') sendGeneralChat()">
+            <button class="qc-btn" data-qc onclick="sendGeneralChat()">發送</button>
+        </div>`;
+    }
+
     return `<div class="quick-chat">
         <div class="qc-header">
-            <span>💬 快速聊天 ${hint}</span>
+            <span>💬 聊天 ${hint}</span>
             <span style="display:flex;gap:8px;align-items:center;">${toggleBtn}<span class="qc-cooldown" id="qc-cooldown"></span></span>
         </div>
-        <div class="qc-row">${presetBtns}</div>
-        <div class="qc-row">${emojiBtns}</div>
+        ${rows}
     </div>`;
 }
 toggleChatExpand() {
@@ -14375,8 +14583,12 @@ ${isFastAiDebug() ? (
                         <input type="checkbox" id="cfg-aiTrashTalk" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
                     </div>
                     <div class="num-item" style="grid-column:1/-1;">
-                        <span>🗨 玩家快速聊天按鈕</span>
-                        <input type="checkbox" id="cfg-chatEnabled" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
+                        <span>💬 快速聊天 & Emoji</span>
+                        <input type="checkbox" id="cfg-quickEmojiEnabled" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
+                    </div>
+                    <div class="num-item" style="grid-column:1/-1;">
+                        <span>✍️ 自由打字聊天</span>
+                        <input type="checkbox" id="cfg-generalChatEnabled" checked style="width:auto;cursor:pointer;accent-color:#c8a040;">
                     </div>
 					<div class="num-item" style="grid-column:1/-1;">
 						<span>📥 AI vs AI 對戰結束時，自動下載 JSON 記錄</span>
@@ -15332,7 +15544,8 @@ function startGame(mode) {
         initialCards: num('cfg-initialCards', 4),
         maxFood     : num('cfg-maxFood', 12),
         aiTrashTalk : (document.getElementById('cfg-aiTrashTalk') || {}).checked !== false,
-        chatEnabled : (document.getElementById('cfg-chatEnabled') || {}).checked !== false,
+        quickEmojiEnabled : (document.getElementById('cfg-quickEmojiEnabled') || {}).checked !== false,
+        generalChatEnabled: (document.getElementById('cfg-generalChatEnabled') || {}).checked !== false,
         autoExport  : !!(document.getElementById('cfg-autoExport') || {}).checked,
         autoRestart : !!(document.getElementById('cfg-autoRestart') || {}).checked,
         autoRestartDelay: 2000
@@ -15479,8 +15692,8 @@ function initLobby(mode) {
     window.__lobby = {
         active: true,
         gameMode: mode,
-        chatEnabled: true,
-        emojiEnabled: true,
+        quickEmojiEnabled: true,
+        generalChatEnabled: true,
         started: false,
         slots
     };
@@ -15582,8 +15795,8 @@ function renderLobbyHost() {
         <div class="lobby-section">
             <h3>⚙️ 對局選項</h3>
             <div class="lobby-options">
-                <label class="chk chk-sm"><input type="checkbox" ${L.chatEnabled?'checked':''} onchange="hostToggleOption('chatEnabled', this.checked)"> 💬 快速聊天</label>
-                <label class="chk chk-sm"><input type="checkbox" ${L.emojiEnabled?'checked':''} onchange="hostToggleOption('emojiEnabled', this.checked)"> 😀 Emoji 快捷</label>
+                <label class="chk chk-sm"><input type="checkbox" ${L.quickEmojiEnabled?'checked':''} onchange="hostToggleOption('quickEmojiEnabled', this.checked)"> 💬 快速聊天 & Emoji</label>
+                <label class="chk chk-sm"><input type="checkbox" ${L.generalChatEnabled?'checked':''} onchange="hostToggleOption('generalChatEnabled', this.checked)"> ✍️ 自由打字聊天</label>
             </div>
         </div>
 
@@ -15652,8 +15865,8 @@ function renderLobbyGuest() {
         <div class="lobby-section">
             <h3>⚙️ 對局選項</h3>
             <div class="lobby-options">
-                <span style="font-size:13px;color:${L.chatEnabled?'#7cff7c':'#a89070'};">${L.chatEnabled?'✓':'✗'} 💬 快速聊天</span>
-                <span style="font-size:13px;color:${L.emojiEnabled?'#7cff7c':'#a89070'};">${L.emojiEnabled?'✓':'✗'} 😀 Emoji 快捷</span>
+                <span style="font-size:13px;color:${L.quickEmojiEnabled?'#7cff7c':'#a89070'};">${L.quickEmojiEnabled?'✓':'✗'} 💬 快速聊天 & Emoji</span>
+                <span style="font-size:13px;color:${L.generalChatEnabled?'#7cff7c':'#a89070'};">${L.generalChatEnabled?'✓':'✗'} ✍️ 自由打字聊天</span>
             </div>
         </div>
 
@@ -15811,8 +16024,8 @@ function hostStartGame() {
         initialCards: srcCfg.initialCards ?? 4,
         maxFood     : srcCfg.maxFood      ?? 12,
         aiTrashTalk : false,
-        chatEnabled : !!L.chatEnabled,
-        emojiEnabled: !!L.emojiEnabled,
+        quickEmojiEnabled : !!L.quickEmojiEnabled,
+        generalChatEnabled: !!L.generalChatEnabled,
         autoExport  : false,
         autoRestart : false,
         netMode: true,
@@ -15917,7 +16130,8 @@ function readCfgFromSetup() {
         initialCards: num('cfg-initialCards', 4),
         maxFood     : num('cfg-maxFood', 12),
         aiTrashTalk : document.getElementById('cfg-aiTrashTalk') ? document.getElementById('cfg-aiTrashTalk').checked : true,
-        chatEnabled : document.getElementById('cfg-chatEnabled') ? document.getElementById('cfg-chatEnabled').checked : true,
+        quickEmojiEnabled : document.getElementById('cfg-quickEmojiEnabled') ? document.getElementById('cfg-quickEmojiEnabled').checked : true,
+        generalChatEnabled: document.getElementById('cfg-generalChatEnabled') ? document.getElementById('cfg-generalChatEnabled').checked : true,
         autoExport  : false,
         autoRestart : false
     };
@@ -15944,10 +16158,14 @@ function showNetStatus(html) {
 }
 
 function cancelNet() {
+    _isReconnecting = true; // Stop reconnect loop
     // 若是 guest，禮貌性通知 host
     if (window.__netState && window.__netState.role === 'guest' && conn && conn.open) {
         try { conn.send({ type: 'LEAVE' }); } catch (e) {}
     }
+    const overlay = document.getElementById('__reconnect_overlay__');
+    if (overlay) overlay.remove();
+    
     window.__netState = null;
     window.__lobby = null;
     window.__mySeat = null;
@@ -16057,6 +16275,8 @@ function joinOnlineRoom() {
 }
 
 function attachHostHandlersMulti(c) {
+    c._lastPingTime = Date.now();
+
     c.on('open', () => {
         // Guest 已連線，發送歡迎 + 目前大廳狀態
         try { c.send({ type: 'WELCOME' }); } catch (e) {}
@@ -16064,19 +16284,50 @@ function attachHostHandlersMulti(c) {
         if (window.__lobby) {
             try { c.send({ type: 'LOBBY_STATE', state: JSON.stringify(window.__lobby) }); } catch (e) {}
         }
+        
+        // ★ v4.2: Host Heartbeat Watchdog
+        if (c._checkInterval) clearInterval(c._checkInterval);
+        c._checkInterval = setInterval(() => {
+            if (Date.now() - c._lastPingTime > 10000) {
+                clearInterval(c._checkInterval);
+                if (c.open) {
+                    console.warn('[heartbeat] Host detected dead Guest connection, closing...');
+                    c.close();
+                }
+            }
+        }, 3000);
     });
 
     c.on('data', (data) => {
         if (!data || typeof data !== 'object') return;
 
+        // ★ v4.2: Reply to Heartbeat
+        if (data.type === 'PING') {
+            c._lastPingTime = Date.now();
+            try { c.send({ type: 'PONG' }); } catch (e) {}
+            return;
+        }
+
         if (data.type === 'HELLO') {
+            c._lastPingTime = Date.now();
             const name = String(data.name || '玩家').slice(0, 12);
-            // 找第一個空位
             if (!window.__lobby) {
                 try { c.send({ type: 'ROOM_FULL' }); c.close(); } catch (e) {}
                 return;
             }
-            const idx = window.__lobby.slots.findIndex((s, i) => i > 0 && s.type === 'empty');
+            
+            let idx = -1;
+            
+            // ★ FIX: If game is already started, look for a disconnected human slot with the same name
+            if (window.__lobby.started) {
+                idx = window.__lobby.slots.findIndex((s, i) => i > 0 && s.type === 'human' && s.name === name && !s.conn);
+            }
+            
+            // Otherwise, find the first empty slot
+            if (idx === -1) {
+                idx = window.__lobby.slots.findIndex((s, i) => i > 0 && s.type === 'empty');
+            }
+            
             if (idx === -1) {
                 try { c.send({ type: 'ROOM_FULL' }); c.close(); } catch (e) {}
                 return;
@@ -16107,20 +16358,18 @@ function attachHostHandlersMulti(c) {
             return;
         }
 
-		if (data.type === 'CHAT') {
-			const senderSeat = window.__lobby.slots.findIndex(s => s.peerId === c.peer);
-			showChatBubble(senderSeat, data.text);
-			window.__peerConns.forEach(pc => {
-				if (pc.conn !== c && pc.conn.open) {
-					try { pc.conn.send({ 
-						type: 'CHAT', 
-						text: data.text, 
-						fromSeat: senderSeat    // ⚠️ 錯！這是收件人的 seat
-					}); } catch (e) {}
-				}
-			});
-			return;
-		}
+        if (data.type === 'CHAT') {
+            const pc = window.__peerConns.find(x => x.conn === c);
+            const actualSeat = pc ? pc.seatIndex : 1; // Fallback to 1
+            showChatBubble(actualSeat, data.text);
+            // Relay to other guests
+            window.__peerConns.forEach(otherPc => {
+                if (otherPc.conn !== c && otherPc.conn.open) {
+                    try { otherPc.conn.send({ type: 'CHAT', text: data.text, fromSeat: actualSeat }); } catch (e) {}
+                }
+            });
+            return;
+        }
 
         if (data.type === 'ACTION') {
             if (!window.game || !window.game.netMode || window.game.role !== 'host') return;
@@ -16150,6 +16399,7 @@ function attachHostHandlersMulti(c) {
     });
 
     c.on('close', () => {
+        if (c._checkInterval) clearInterval(c._checkInterval);
         const pc = window.__peerConns.find(x => x.conn === c);
         if (pc && window.__lobby && !window.__lobby.started) {
             window.__lobby.slots[pc.seatIndex] = { type: 'empty', name: '空位', difficulty: null, ready: false, peerId: null };
@@ -16178,38 +16428,122 @@ function attachHostHandlers(c, cfg) {
     attachHostHandlersMulti(c);
 }
 
+let _isReconnecting = false;
+
+function triggerReconnect(code) {
+    if (_isReconnecting) return;
+    _isReconnecting = true;
+
+    if (conn) {
+        try { conn.close(); } catch(e){}
+        conn = null;
+    }
+
+    window.__reconnectAttempts = (window.__reconnectAttempts || 0) + 1;
+    
+    if (window.__reconnectAttempts > 10) {
+        alert('❌ 與房主連線中斷超過 10 次，無法恢復。');
+        cancelNet();
+        _isReconnecting = false;
+        return;
+    }
+    
+    const delay = Math.min(1000 * Math.pow(2, window.__reconnectAttempts), 8000); // 2s, 4s, 8s
+    
+    try {
+        if (window.game) {
+            window.game.addLog('sys', `⚠️ 連線中斷！將在 ${delay/1000} 秒後嘗試重新連線（第 ${window.__reconnectAttempts} 次）…`);
+            window.game.render();
+        }
+        
+        let overlay = document.getElementById('__reconnect_overlay__');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = '__reconnect_overlay__';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ffd700;font-size:24px;font-family:inherit;gap:20px;';
+            overlay.innerHTML = `
+                <div style="font-size:60px;">📡</div>
+                <div>與房主連線中斷...</div>
+                <div style="font-size:16px;color:#ff9c4a;" id="__reconnect_msg">正在嘗試重新連線（第 ${window.__reconnectAttempts} 次）</div>
+                <button class="btn btn-red" onclick="cancelNet()">放棄連線</button>
+            `;
+            document.body.appendChild(overlay);
+        } else {
+            const msg = document.getElementById('__reconnect_msg');
+            if (msg) msg.textContent = `正在嘗試重新連線（第 ${window.__reconnectAttempts} 次）`;
+        }
+    } catch (e) {}
+
+    setTimeout(() => {
+        _isReconnecting = false;
+        if (!conn || !conn.open) {
+            connectToHost(code);
+        }
+    }, delay);
+}
+
 function connectToHost(code) {
     if (!peer || peer.destroyed) return;
-    // ★ FIX: Force JSON for everyone (much more stable over TURN/internet)
+    if (_isReconnecting) return; // Don't connect if we are waiting to retry
+
     const connOptions = { reliable: true, serialization: 'json' };
     conn = peer.connect('sanguo-flash-' + code, connOptions);
+    const _localConn = conn;
 
-    // ★ FIX: Increase timeout to 20 seconds for distal connections
+    // Timeout if connection takes > 10s to open
     const connTimeoutId = setTimeout(() => {
         if (!conn || !conn.open) {
             try { if (conn) conn.close(); } catch (e) {}
+            triggerReconnect(code);
         }
-    }, 20000);
+    }, 10000);
 
     conn.on('open', () => {
         clearTimeout(connTimeoutId);
-        // 送出 HELLO，等待房主分派座位
+        window.__reconnectAttempts = 0; 
+        _isReconnecting = false;
+        
         try { conn.send({ type: 'HELLO', name: window.__myName || null }); } catch (e) {}
+
+        // Heartbeat (PING)
+        _localConn._lastPongTime = Date.now();
+        if (_localConn._pingInterval) clearInterval(_localConn._pingInterval);
+        _localConn._pingInterval = setInterval(() => {
+            if (!_localConn || !_localConn.open) {
+                clearInterval(_localConn._pingInterval);
+                return;
+            }
+            if (Date.now() - _localConn._lastPongTime > 10000) {
+                clearInterval(_localConn._pingInterval);
+                console.warn('[heartbeat] Ping timeout, closing connection...');
+                try { _localConn.close(); } catch(e){}
+                triggerReconnect(code);
+                return;
+            }
+            try { _localConn.send({ type: 'PING' }); } catch(e){}
+        }, 3000);
     });
+    
     conn.on('data', handleHostToGuest);
+    
     conn.on('close', () => {
+        if (_localConn._pingInterval) clearInterval(_localConn._pingInterval);
         clearTimeout(connTimeoutId);
-        conn = null;
+        if (conn === _localConn) conn = null;
+        
         if (window.game && window.game.netMode && window.__lobby && window.__lobby.started) {
-            try {
-                window.game.addLog('sys', '⚠️ 與房主連線中斷，嘗試重新連線…');
-                window.game.render();
-            } catch (e) {}
+            triggerReconnect(code);
         }
     });
+    
     conn.on('error', (err) => {
         clearTimeout(connTimeoutId);
         console.error('[net] conn error:', err);
+        if (conn === _localConn) conn = null;
+        
+        if (window.game && window.game.netMode && window.__lobby && window.__lobby.started) {
+            triggerReconnect(code);
+        }
     });
 }
 
@@ -16253,6 +16587,18 @@ function handleGuestToHost(data) {
 
 function handleHostToGuest(data) {
     if (!data || typeof data !== 'object') return;
+
+    // ★ v4.2: Handle Heartbeat
+    if (data.type === 'PONG') {
+        if (conn) conn._lastPongTime = Date.now();
+        return;
+    }
+
+    // ★ FIX: Remove the reconnecting overlay if a STATE arrives
+    if (data.type === 'STATE') {
+        const overlay = document.getElementById('__reconnect_overlay__');
+        if (overlay) overlay.remove();
+    }
 
     if (data.type === 'WELCOME') return;
 
@@ -16310,8 +16656,8 @@ function handleHostToGuest(data) {
 					initialFood: 7, winBonus: 1, baseRefill: 6,
 					initialCards: 4, maxFood: 12,
 					aiTrashTalk: false,
-					chatEnabled: (window.__lobby && window.__lobby.chatEnabled) !== false,
-					emojiEnabled: (window.__lobby && window.__lobby.emojiEnabled) !== false,
+					quickEmojiEnabled : (window.__lobby && window.__lobby.quickEmojiEnabled)  !== false,
+					generalChatEnabled: (window.__lobby && window.__lobby.generalChatEnabled) !== false,
 					autoExport: false, autoRestart: false,
 					seed: data.state.seed || ''
 				};
@@ -16337,35 +16683,76 @@ let chatCooldownTimer = null;
 
 function showChatBubble(pi, text) {
     if (!text) return;
-    const posMap = ['blue', 'red', 'green', 'purple'];
-    const pos = posMap[pi % posMap.length] || 'blue';
+
+    // Emoji counts as 1 char (Array.from splits by code point)
+    const chars = Array.from(text);
+    if (chars.length > 30) text = chars.slice(0, 30).join('') + '...';
+
+    const sideEl = document.getElementById(`hb-side-${pi}`);
+    if (!sideEl) return;
+
+    const oldBubbles = sideEl.querySelectorAll('.hb-chat-bubble');
+    oldBubbles.forEach(b => b.remove());
+
     const bubble = document.createElement('div');
-    bubble.className = `chat-bubble chat-bubble-${pos}`;
+    bubble.className = 'hb-chat-bubble';
+
+    const col = PLAYER_COLORS[pi % PLAYER_COLORS.length];
+    bubble.style.borderColor = col.text;
+
     bubble.textContent = text;
-    document.body.appendChild(bubble);
+    sideEl.appendChild(bubble);
+
     setTimeout(() => {
         try { bubble.remove(); } catch (e) {}
-    }, 4000);
+    }, 3000);
+}
+
+function sendGeneralChat() {
+    const input = document.getElementById('qc-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    if (Array.from(text).length > 30) {
+        alert('訊息長度不能超過 30 字！（Emoji 算 1 字）');
+        return;
+    }
+    input.value = '';
+    sendChat(text);
 }
 
 function sendChat(text) {
     if (!window.game) return;
     if (Date.now() < chatCooldownUntil) return;
     const g = window.game;
+
     if (g.netMode) {
-        if (!conn || !conn.open) return;
         const me = g.localPlayerIdx;
-        try { conn.send({ type: 'CHAT', text }); } catch (e) { console.error(e); }
+        if (g.role === 'host') {
+            // Host: broadcast to all guests
+            if (window.__peerConns && window.__peerConns.length > 0) {
+                window.__peerConns.forEach(pc => {
+                    if (pc.conn && pc.conn.open) {
+                        try { pc.conn.send({ type: 'CHAT', text, fromSeat: me }); } catch (e) {}
+                    }
+                });
+            }
+        } else {
+            // Guest: send to host via conn
+            if (!conn || !conn.open) return;
+            try { conn.send({ type: 'CHAT', text, fromSeat: me }); } catch (e) { console.error(e); }
+        }
+        // Always show locally (host + guest)
         showChatBubble(me, text);
     } else {
-        const pi = g.current;
+        // Local mode — use the human seat (works even during AI turn)
+        const pi = g._localPlayerSeat();
         if (!g.players[pi]) return;
-        if (g.isAI(pi)) return;
+        if (g.isAI(pi)) return;   // all-AI games: silent
         showChatBubble(pi, text);
-        // 觸發 AI 回應（PvAI 模式）
         g.maybeAIChatResponse(pi, text);
     }
-    chatCooldownUntil = Date.now() + 5000;
+    chatCooldownUntil = Date.now() + 3000;
     updateChatCooldownUI();
 }
 
